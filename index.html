@@ -22,6 +22,14 @@
 </head>
 
 <body>
+  <!-- Navigation bar: the same on every page. The current page is plain text. -->
+  <p>
+    Module 1 |
+    <a href="module2.html">Module 2</a> |
+    <a href="module3.html">Module 3</a> |
+    <a href="module4.html">Module 4</a>
+  </p>
+
   <h1>Module 1: First-Order Time Response</h1>
   <p>Model: &tau; dy/dt + y = Kx(t)</p>
   <p class="note">We use A = 1 (unit step or unit-slope ramp) and y(0) = 0.</p>
@@ -100,6 +108,7 @@
       get("feedback").textContent = "";
     }
 
+    // Redraws everything. Runs every time a slider or the input type changes.
     function draw() {
       const K = Number(get("gain").value);
       const tau = Number(get("tau").value);
@@ -111,6 +120,7 @@
       const tEnd = step ? 100 : 10 * tau;
       const times = [], outputs = [], ideal = [];
 
+      // Make 301 points of the response and of the ideal (no-delay) output.
       for (let i = 0; i <= 300; i++) {
         const t = i * tEnd / 300;
         times.push(t);
@@ -126,6 +136,7 @@
       const notes = [];
 
       if (step) {
+        // Mark the 63.2% point (at τ) and the 95% point (at 3τ).
         const y1 = stepResponse(tau, K, tau);
         const y3 = stepResponse(3 * tau, K, tau);
         traces.push({
@@ -148,6 +159,7 @@
         const idealOutput = K * t0;
         const idealTime = output / K; // Time when ideal ramp has the same height.
 
+        // Red line = output error (vertical gap). Green line = time lag (horizontal gap).
         shapes.push(
           { type: "line", x0: t0, x1: t0, y0: output, y1: idealOutput,
             line: { color: "red", width: 3 } },
@@ -180,11 +192,19 @@
         : "Ramp: tracking error = Kt - y. Its final value is Kτ. " +
           "The fraction still missing from that final error is e^(-t/τ).";
 
+      //the error fraction is now calculated from the response itself
       const errorTimes = [], fractions = [];
       for (let i = 0; i <= 200; i++) {
         const t = 5 * tau * i / 200;
         errorTimes.push(t);
-        fractions.push(Math.exp(-t / tau));
+        if (step) {
+          // Step: fraction of the final value K that is still missing.
+          fractions.push((K - stepResponse(t, K, tau)) / K);
+        } else {
+          // Ramp: the tracking error is K*t - y and it grows toward K*tau,
+          // so this is the fraction of K*tau that is still missing.
+          fractions.push((K * tau - (K * t - rampResponse(t, K, tau))) / (K * tau));
+        }
       }
 
       Plotly.react("errorPlot", [
@@ -198,7 +218,8 @@
         margin: { t: 50, b: 60, l: 65, r: 30 }
       }, { responsive: true, displaylogo: false });
 
-      // Natural-log slope is -1/τ (Plotly's log axis uses base 10).
+      // Slope of ln(fraction) between two points. It should be -1/τ.
+      // (Plotly's log axis uses base 10, so the picture's slope looks different.)
       const slope = (Math.log(fractions[120]) - Math.log(fractions[20])) /
                     (errorTimes[120] - errorTimes[20]);
       get("slopeInfo").textContent =
@@ -212,6 +233,7 @@
       get("value1").textContent = result1.toFixed(4);
       get("value2").textContent = result2.toFixed(4);
 
+      // PASS if we are within 0.001 of the slide values (the slides are rounded).
       const pass1 = Math.abs(result1 - 0.632) < 0.001;
       const pass2 = Math.abs(result2 - 0.950) < 0.001;
       get("result1").textContent = pass1 ? "PASS" : "FAIL";
@@ -234,6 +256,7 @@
               : "For a unit ramp, the steady-state time lag equals τ, so it increases.");
     });
 
+    // Redraw whenever a slider moves.
     get("gain").addEventListener("input", draw);
     get("tau").addEventListener("input", draw);
     get("inputType").addEventListener("change", function () {
@@ -241,6 +264,7 @@
       draw();
     });
 
+    // First draw when the page opens.
     setQuestion();
     draw();
   </script>

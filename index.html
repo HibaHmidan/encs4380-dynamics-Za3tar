@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dynamics Toolkit</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 0 auto; padding: 12px; }
+    .row { margin: 8px 0; }
+    input[type=range] { width: 100%; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #999; padding: 4px 8px; text-align: left; }
+    .pass { color: green; font-weight: bold; }
+    .fail { color: red; font-weight: bold; }
+    .box { border: 2px solid #4a7; padding: 8px; margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>Module 1: First-order time response</h1>
+
+  <div class="box">
+    <b>Predict, then check:</b> If you increase τ, when does the output reach 63.2% of its final value?<br>
+    <select id="guess">
+      <option value="">-- choose --</option>
+      <option value="sooner">Sooner</option>
+      <option value="same">At the same time</option>
+      <option value="later">Later</option>
+    </select>
+    <button id="checkGuess">Check</button>
+    <span id="guessResult"></span>
+  </div>
+
+  <div class="row">Input:
+    <select id="input">
+      <option value="step">Step</option>
+      <option value="ramp">Ramp</option>
+    </select>
+  </div>
+  <div class="row">K = <span id="KVal">1</span>
+    <input type="range" id="K" min="0.5" max="5" step="0.1" value="1"></div>
+  <div class="row">A = <span id="AVal">1</span> (step height, or ramp slope)
+    <input type="range" id="A" min="0.5" max="5" step="0.1" value="1"></div>
+  <div class="row">τ = <span id="tauVal">10</span> s
+    <input type="range" id="tau" min="1" max="30" step="0.5" value="10"></div>
+
+  <div id="plot"></div>
+  <p id="rampInfo"></p>
+  <div id="errPlot"></div>
+  <p id="slopeInfo"></p>
+
+  <h3>Validation check 1 (step)</h3>
+  <table>
+    <tr><th>Test</th><th>Expected</th><th>Mine</th><th>Result</th></tr>
+    <tr><td>y(τ) / KA</td><td>0.632</td><td id="v1"></td><td id="r1"></td></tr>
+    <tr><td>y(3τ) / KA</td><td>0.95</td><td id="v2"></td><td id="r2"></td></tr>
+  </table>
+
+  <script>
+    const $ = id => document.getElementById(id);
+
+    // The two formulas from the slides
+    const stepY = (t, K, A, tau) => K * A * (1 - Math.exp(-t / tau));
+    const rampY = (t, K, A, tau) => K * A * (t - tau + tau * Math.exp(-t / tau));
+
+    function draw() {
+      const K = parseFloat($('K').value);
+      const A = parseFloat($('A').value);
+      const tau = parseFloat($('tau').value);
+      const mode = $('input').value;
+      $('KVal').textContent = K;
+      $('AVal').textContent = A;
+      $('tauVal').textContent = tau;
+
+      const N = 300, tEnd = 5 * tau;
+      const t = [], y = [], ideal = [], errFrac = [];
+      for (let i = 0; i <= N; i++) {
+        const ti = tEnd * i / N;
+        t.push(ti);
+        if (mode === 'step') {
+          y.push(stepY(ti, K, A, tau));
+          ideal.push(K * A);                       // final value
+          errFrac.push((K * A - y[i]) / (K * A));  // = e^(-t/tau)
+        } else {
+          y.push(rampY(ti, K, A, tau));
+          ideal.push(K * A * ti);                  // ideal output
+          // remaining fraction of the steady-state error K*A*tau
+          errFrac.push((K * A * tau - (ideal[i] - y[i])) / (K * A * tau));
+        }
+      }
+
+      const f = mode === 'step' ? stepY : rampY;
+      const traces = [
+        { x: t, y: y, mode: 'lines', name: 'output y(t)' },
+        { x: t, y: ideal, mode: 'lines', name: mode === 'step' ? 'final value KA' : 'ideal K·A·t', line: { dash: 'dash' } }
+      ];
+      if (mode === 'step') {
+        traces.push({ x: [tau, 3 * tau], y: [f(tau, K, A, tau), f(3 * tau, K, A, tau)],
+          mode: 'markers+text', text: ['63.2% at τ', '95% at 3τ'], textposition: 'bottom right',
+          name: 'markers', marker: { size: 10 } });
+      }
+      Plotly.react('plot', traces, {
+        xaxis: { title: 'time (s)' }, yaxis: { title: 'y(t)' }, margin: { t: 20 }
+      }, { responsive: true });
+
+      if (mode === 'ramp') {
+        $('rampInfo').textContent = 'Ramp: lag = τ = ' + tau + ' s. Steady-state error = K·A·τ = ' +
+          (K * A * tau).toFixed(2) + ' (the output stays this far below the ideal line).';
+      } else {
+        $('rampInfo').textContent = 'Step: final value K·A = ' + (K * A).toFixed(2) + '.';
+      }
+
+      // error-fraction plot on a log axis
+      Plotly.react('errPlot', [{ x: t, y: errFrac, mode: 'lines', name: 'error fraction' }], {
+        title: 'Error fraction (log axis)',
+        xaxis: { title: 'time (s)' }, yaxis: { title: 'error fraction', type: 'log' }, margin: { t: 40 }
+      }, { responsive: true });
+
+      // measured slope of ln(error) vs t, compared with -1/tau
+      const i1 = 0, i2 = N;
+      const slope = (Math.log(errFrac[i2]) - Math.log(errFrac[i1])) / (t[i2] - t[i1]);
+      $('slopeInfo').textContent = 'Slope of ln(error fraction) vs t: ' + slope.toFixed(4) +
+        '   Expected −1/τ = ' + (-1 / tau).toFixed(4);
+
+      // validation check 1 (always uses the step formula)
+      const r1 = stepY(tau, K, A, tau) / (K * A);
+      const r2 = stepY(3 * tau, K, A, tau) / (K * A);
+      $('v1').textContent = r1.toFixed(3);
+      $('v2').textContent = r2.toFixed(3);
+      const ok1 = Math.abs(r1 - 0.632) < 0.001, ok2 = Math.abs(r2 - 0.95) < 0.001;
+      $('r1').textContent = ok1 ? 'PASS' : 'FAIL'; $('r1').className = ok1 ? 'pass' : 'fail';
+      $('r2').textContent = ok2 ? 'PASS' : 'FAIL'; $('r2').className = ok2 ? 'pass' : 'fail';
+    }
+
+    ['K', 'A', 'tau', 'input'].forEach(id => $(id).addEventListener('input', draw));
+
+    $('checkGuess').addEventListener('click', () => {
+      const g = $('guess').value;
+      if (!g) { $('guessResult').textContent = ' Choose an answer first.'; return; }
+      $('guessResult').textContent = g === 'later'
+        ? ' Correct: 63.2% is reached at t = τ, so a bigger τ means later. Move the slider to see it.'
+        : ' Not quite: 63.2% is reached at t = τ, so a bigger τ means later. Move the slider to see it.';
+    });
+
+    draw();
+  </script>
+</body>
+</html>

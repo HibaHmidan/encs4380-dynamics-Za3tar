@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Module 2: First-Order Frequency Response</title>
+
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: auto;
+      padding: 16px;
+      line-height: 1.5;
+    }
+
+    .box {
+      border: 1px solid #aaa;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 20px 0;
+    }
+
+    .control { margin: 20px 0; }
+    input[type="range"] { width: 100%; }
+    button, select, input[type="number"] { padding: 8px; }
+    input[type="number"] { width: 120px; }
+    .plot { width: 100%; min-height: 320px; }
+    .table-wrapper { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: left;
+    }
+
+    .pass { color: green; font-weight: bold; }
+    .fail { color: red; font-weight: bold; }
+  </style>
+</head>
+
+<body>
+  <a href="index.html">Module 1</a>
+
+  <h1>Module 2: First-Order Frequency Response</h1>
+
+  <p>
+    Model: τ dy/dt + y = x(t). Static gain K = 1.
+    Input amplitude A = 1.
+  </p>
+
+  <p>
+    x(t) = sin(ωt)<br>
+    y<sub>ss</sub>(t) = M sin(ωt + φ)<br>
+    M = 1 / √(1 + (ωτ)²)<br>
+    φ = −atan(ωτ)
+  </p>
+
+  <p>
+    The sine plot shows the steady-state response,
+    after the transient has decayed.
+  </p>
+
+  <div class="box">
+    <h3>Predict, then check</h3>
+
+    <p>
+      Keep τ fixed. If you increase the input frequency,
+      what happens to the output amplitude and phase lag?
+      Choose your prediction, move the frequency slider,
+      then check.
+    </p>
+
+    <select id="prediction">
+      <option value="">Choose an answer</option>
+      <option value="correct">
+        Amplitude decreases; phase lag increases
+      </option>
+      <option value="wrong1">
+        Amplitude increases; phase lag decreases
+      </option>
+      <option value="wrong2">
+        Both stay the same
+      </option>
+    </select>
+
+    <button id="checkPrediction">Check</button>
+    <p id="predictionResult"></p>
+  </div>
+
+  <div class="box">
+    <h3>Sensor Parameters</h3>
+
+    <div class="control">
+      <label for="tau">
+        Time constant τ = <span id="tauValue"></span> s
+      </label>
+      <input type="range" id="tau"
+             min="0.01" max="1" step="0.01" value="0.2">
+    </div>
+
+    <div class="control">
+      <label for="omega">
+        Angular frequency ω =
+        <span id="omegaValue"></span> rad/s
+      </label>
+      <input type="range" id="omega"
+             min="0.1" max="20" step="0.1" value="2">
+    </div>
+
+    <p id="frequencyInfo"></p>
+  </div>
+
+  <h2>Input and Output Sines</h2>
+  <div id="sinePlot" class="plot"></div>
+
+  <div class="box">
+    <p id="amplitudeInfo"></p>
+    <p id="phaseInfo"></p>
+    <p id="dynamicErrorInfo"></p>
+  </div>
+
+  <h2>Bode Plot</h2>
+
+  <p>
+    Magnitude = 20 log₁₀(M).
+    The frequency axes are logarithmic.
+  </p>
+
+  <div id="magnitudePlot" class="plot"></div>
+  <div id="phasePlot" class="plot"></div>
+  <p id="cutoffInfo"></p>
+
+  <div class="box">
+    <h3>Dynamic-Error Calculator</h3>
+
+    <p>
+      For the selected sliders, δ = M − 1.
+      The negative sign indicates amplitude attenuation.
+    </p>
+
+    <p>
+      Calculate the maximum time constant for a specified
+      maximum frequency and allowed amplitude error.
+    </p>
+
+    <div class="control">
+      <label for="maxFrequency">Maximum frequency (Hz):</label>
+      <input type="number" id="maxFrequency"
+             min="0.01" step="any" value="100">
+    </div>
+
+    <div class="control">
+      <label for="allowedError">Maximum |δ| (%):</label>
+      <input type="number" id="allowedError"
+             min="0.01" max="99.99" step="any" value="5">
+    </div>
+
+    <p>
+      τ<sub>max</sub> =
+      √(1 / (1 − ε)² − 1) / (2πf<sub>max</sub>),
+      where ε is the allowed error as a fraction.
+    </p>
+
+    <p id="calculatorResult"></p>
+  </div>
+
+  <h2>Validation Checks 2 and 3</h2>
+
+  <p>
+    These checks use the fixed assignment values,
+    independently of the sliders and calculator inputs.
+  </p>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Test</th>
+          <th>Expected</th>
+          <th>Calculated</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody id="validationBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    function get(id) {
+      return document.getElementById(id);
+    }
+
+    // Normalized amplitude ratio; K = 1.
+    function amplitudeRatio(omega, tau) {
+      return 1 / Math.sqrt(1 + (omega * tau) ** 2);
+    }
+
+    // Returns phase in radians.
+    function phaseRadians(omega, tau) {
+      return -Math.atan(omega * tau);
+    }
+
+    function degrees(angle) {
+      return angle * 180 / Math.PI;
+    }
+
+    // errorFraction must be between 0 and 1.
+    function maximumTau(frequencyHz, errorFraction) {
+      const minimumM = 1 - errorFraction;
+
+      return Math.sqrt(1 / minimumM ** 2 - 1)
+             / (2 * Math.PI * frequencyHz);
+    }
+
+    const plotConfig = { responsive: true };
+
+    function draw() {
+      const tau = Number(get("tau").value);
+      const omega = Number(get("omega").value);
+
+      const M = amplitudeRatio(omega, tau);
+      const phi = phaseRadians(omega, tau);
+      const phaseDeg = degrees(phi);
+      const delta = M - 1;
+
+      get("tauValue").textContent = tau.toFixed(2);
+      get("omegaValue").textContent = omega.toFixed(1);
+
+      get("frequencyInfo").textContent =
+        "f = ω / (2π) = " +
+        (omega / (2 * Math.PI)).toFixed(4) + " Hz.";
+
+      get("amplitudeInfo").textContent =
+        "Amplitude ratio M = " + M.toFixed(4) +
+        ". Input amplitude = 1; output amplitude = " +
+        M.toFixed(4) + ".";
+
+      get("phaseInfo").textContent =
+        "Phase φ = " + phaseDeg.toFixed(2) +
+        "°. The output lags the input by " +
+        (-phaseDeg).toFixed(2) + "°.";
+
+      get("dynamicErrorInfo").textContent =
+        "Dynamic error δ = M − 1 = " +
+        delta.toFixed(5) + " = " +
+        (100 * delta).toFixed(2) + "%.";
+
+      // Show four input periods.
+      const period = 2 * Math.PI / omega;
+      const endTime = 4 * period;
+
+      const times = [];
+      const input = [];
+      const output = [];
+
+      for (let i = 0; i <= 800; i++) {
+        const t = endTime * i / 800;
+
+        times.push(t);
+        input.push(Math.sin(omega * t));
+
+        // Math.sin requires radians.
+        output.push(M * Math.sin(omega * t + phi));
+      }
+
+      Plotly.react("sinePlot", [
+        {
+          x: times,
+          y: input,
+          mode: "lines",
+          name: "Input x(t)"
+        },
+        {
+          x: times,
+          y: output,
+          mode: "lines",
+          name: "Output y_ss(t)"
+        }
+      ], {
+        title: { text: "Steady-State Sinusoidal Response" },
+        xaxis: { title: "Time (s)", range: [0, endTime] },
+        yaxis: { title: "Amplitude", range: [-1.15, 1.15] },
+        legend: { orientation: "h" },
+        margin: { l: 60, r: 25, t: 55, b: 70 }
+      }, plotConfig);
+
+      // Cutoff angular frequency.
+      const cutoff = 1 / tau;
+
+      // Include the cutoff and selected frequency in the Bode range.
+      const minOmega = Math.min(cutoff / 100, omega / 10);
+      const maxOmega = Math.max(cutoff * 100, omega * 10);
+
+      const logMin = Math.log10(minOmega);
+      const logMax = Math.log10(maxOmega);
+
+      const frequencies = [];
+      const magnitudes = [];
+      const phases = [];
+
+      for (let i = 0; i <= 500; i++) {
+        const w = 10 ** (logMin + (logMax - logMin) * i / 500);
+
+        frequencies.push(w);
+        magnitudes.push(20 * Math.log10(amplitudeRatio(w, tau)));
+        phases.push(degrees(phaseRadians(w, tau)));
+      }
+
+      function bodeLayout(title, yTitle) {
+        return {
+          title: { text: title },
+          xaxis: {
+            title: "Angular frequency ω (rad/s)",
+            type: "log",
+            range: [logMin, logMax]
+          },
+          yaxis: { title: yTitle },
+          legend: { orientation: "h" },
+          margin: { l: 65, r: 25, t: 55, b: 80 },
+          shapes: [{
+            type: "line",
+            xref: "x",
+            yref: "paper",
+            x0: cutoff,
+            x1: cutoff,
+            y0: 0,
+            y1: 1,
+            line: { color: "gray", dash: "dash" }
+          }]
+        };
+      }
+
+      Plotly.react("magnitudePlot", [
+        {
+          x: frequencies,
+          y: magnitudes,
+          mode: "lines",
+          name: "Magnitude"
+        },
+        {
+          x: [cutoff],
+          y: [20 * Math.log10(1 / Math.sqrt(2))],
+          mode: "markers",
+          marker: { size: 10 },
+          name: "Cutoff"
+        },
+        {
+          x: [omega],
+          y: [20 * Math.log10(M)],
+          mode: "markers",
+          marker: { size: 10, symbol: "diamond" },
+          name: "Selected frequency"
+        }
+      ], bodeLayout("Bode Magnitude", "Magnitude (dB)"),
+      plotConfig);
+
+      Plotly.react("phasePlot", [
+        {
+          x: frequencies,
+          y: phases,
+          mode: "lines",
+          name: "Phase"
+        },
+        {
+          x: [cutoff],
+          y: [-45],
+          mode: "markers",
+          marker: { size: 10 },
+          name: "Cutoff"
+        },
+        {
+          x: [omega],
+          y: [phaseDeg],
+          mode: "markers",
+          marker: { size: 10, symbol: "diamond" },
+          name: "Selected frequency"
+        }
+      ], bodeLayout("Bode Phase", "Phase (degrees)"),
+      plotConfig);
+
+      get("cutoffInfo").textContent =
+        "Cutoff: ωc = 1/τ = " + cutoff.toFixed(4) +
+        " rad/s; fc = " +
+        (cutoff / (2 * Math.PI)).toFixed(4) +
+        " Hz. At cutoff: M = 0.7071, magnitude = −3.0103 dB, " +
+        "and phase = −45°.";
+    }
+
+    function updateCalculator() {
+      const f = Number(get("maxFrequency").value);
+      const errorPercent = Number(get("allowedError").value);
+
+      if (!Number.isFinite(f) || f <= 0 ||
+          !Number.isFinite(errorPercent) ||
+          errorPercent <= 0 || errorPercent >= 100) {
+        get("calculatorResult").textContent =
+          "Enter a frequency above zero and an error between 0% and 100%.";
+        return;
+      }
+
+      const tauMax = maximumTau(f, errorPercent / 100);
+
+      get("calculatorResult").textContent =
+        "Maximum time constant τmax = " +
+        tauMax.toPrecision(6) + " s = " +
+        (1000 * tauMax).toPrecision(6) +
+        " ms. Use τ ≤ τmax to satisfy the amplitude-error limit.";
+    }
+
+    function validate() {
+      const testTau = 0.2;
+      const testOmega = 2;
+
+      const M = amplitudeRatio(testOmega, testTau);
+      const lag = -degrees(phaseRadians(testOmega, testTau));
+
+      const tauMax = maximumTau(100, 0.05);
+      const lag50 = -degrees(
+        phaseRadians(2 * Math.PI * 50, tauMax)
+      );
+
+      // Tolerances account for the rounded assignment values.
+      const tests = [
+        {
+          name: "2: Amplitude ratio, τ = 0.2 s, ω = 2 rad/s",
+          expected: "0.93",
+          actual: M.toFixed(5),
+          pass: Math.abs(M - 0.93) < 0.005
+        },
+        {
+          name: "2: Phase lag, τ = 0.2 s, ω = 2 rad/s",
+          expected: "21.8°",
+          actual: lag.toFixed(3) + "°",
+          pass: Math.abs(lag - 21.8) < 0.05
+        },
+        {
+          name: "3: Maximum τ, 100 Hz, 5% error",
+          expected: "≈ 0.52 ms",
+          actual: (tauMax * 1000).toFixed(5) + " ms",
+          pass: Math.abs(tauMax * 1000 - 0.52) < 0.005
+        },
+        {
+          name: "3: Phase lag at 50 Hz using τmax",
+          expected: "9.3°",
+          actual: lag50.toFixed(3) + "°",
+          pass: Math.abs(lag50 - 9.3) < 0.05
+        }
+      ];
+
+      get("validationBody").innerHTML = tests.map(test => `
+        <tr>
+          <td>${test.name}</td>
+          <td>${test.expected}</td>
+          <td>${test.actual}</td>
+          <td class="${test.pass ? "pass" : "fail"}">
+            ${test.pass ? "PASS" : "FAIL"}
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    get("tau").addEventListener("input", draw);
+    get("omega").addEventListener("input", draw);
+
+    get("maxFrequency").addEventListener("input", updateCalculator);
+    get("allowedError").addEventListener("input", updateCalculator);
+
+    get("checkPrediction").addEventListener("click", function () {
+      const answer = get("prediction").value;
+
+      if (answer === "") {
+        get("predictionResult").textContent =
+          "Please choose an answer first.";
+      } else if (answer === "correct") {
+        get("predictionResult").textContent =
+          "Correct! At fixed τ, increasing frequency decreases " +
+          "the output amplitude and increases the phase lag.";
+      } else {
+        get("predictionResult").textContent =
+          "The output amplitude decreases and the phase lag increases. " +
+          "Try increasing the frequency slider.";
+      }
+    });
+
+    draw();
+    updateCalculator();
+    validate();
+  </script>
+</body>
+</html>

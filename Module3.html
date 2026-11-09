@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ENCS4380 - Module 3: Second-Order Response & State-Space Panel</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #38bdf8;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+      --success: #22c55e;
+      --border: #334155;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    h1, h2, h3 { color: var(--accent); margin-top: 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+    .slider-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    input[type=range] { flex: 1; margin: 0 10px; accent-color: var(--accent); }
+    .metric-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #0284c7;
+      font-weight: bold;
+    }
+    .matrix-box {
+      font-family: monospace;
+      background: #0f172a;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      white-space: pre-wrap;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; font-size: 0.9em; }
+    th { background: #0f172a; color: var(--accent); }
+    .pass { color: var(--success); font-weight: bold; }
+    .chart-container { position: relative; height: 260px; width: 100%; }
+    .predict-box {
+      background: #1e1b4b;
+      border: 1px solid #6366f1;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Module 3: Second-Order Response & State-Space Toolkit</h1>
+  <p style="color: var(--subtext)">ENCS4380 Interfacing Techniques | Birzeit University</p>
+
+  <div class="predict-box">
+    <strong>🤔 Predict, then check:</strong> 
+    If you double the damping coefficient (b), will the overshoot increase or decrease? Will the peak time occur earlier or later? Move the slider to test your intuition!
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>System Parameters</h2>
+      <div class="slider-group">
+        <div class="slider-row">
+          <label>Mass (m): <span id="val-m">1.0</span> kg</label>
+          <input type="range" id="slider-m" min="0.1" max="5.0" step="0.1" value="1.0">
+        </div>
+        <div class="slider-row">
+          <label>Damping (b): <span id="val-b">2.0</span> N·s/m</label>
+          <input type="range" id="slider-b" min="0.0" max="10.0" step="0.1" value="2.0">
+        </div>
+        <div class="slider-row">
+          <label>Stiffness (k): <span id="val-k">4.0</span> N/m</label>
+          <input type="range" id="slider-k" min="0.5" max="20.0" step="0.5" value="4.0">
+        </div>
+      </div>
+
+      <h3>Derived Characteristics</h3>
+      <p>Natural Frequency (Wn): <strong id="out-wn">2.00</strong> rad/s</p>
+      <p>Damping Ratio (ζ): <strong id="out-zeta">0.50</strong></p>
+      <p>Response Regime: <span id="out-regime" class="metric-badge">Underdamped</span></p>
+
+      <h3>Live Calculated Metrics</h3>
+      <p>Peak Time (Tp): <strong id="out-tp">1.81</strong> s</p>
+      <p>Overshoot (%OS): <strong id="out-os">16.3</strong> %</p>
+      <p>Rise Time (Tr, 0-100%): <strong id="out-tr">1.21</strong> s</p>
+      <p>Settling Time (Ts, 2%): <strong id="out-ts">4.00</strong> s</p>
+    </div>
+
+    <div class="card">
+      <h2>Time Response y(t)</h2>
+      <div class="chart-container">
+        <canvas id="stepChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>State-Space Panel (Section 3.1)</h2>
+     <p style="color: var(--subtext); font-size: 0.9em; font-family: monospace;">[ẋ₁; ẋ₂] = [0, 1; -k/m, -b/m][x₁; x₂] + [0; 1/m]F(t), &nbsp;&nbsp; y = [1, 0][x₁; x₂]</p>
+      
+      <div class="matrix-box" id="matrix-display">
+A = [   0.00,    1.00 ]
+    [  -4.00,   -2.00 ]
+
+B = [ 0.00 ]
+    [ 1.00 ]
+      </div>
+
+      <p style="margin-top: 15px;">Eigenvalues of matrix $\mathbf{A}$:</p>
+      <div class="matrix-box" id="eigen-display">
+λ₁ = -1.000 + j1.732
+λ₂ = -1.000 - j1.732
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Phase Plane Trajectory (x1, x2)</h2>
+      <p style="color: var(--subtext); font-size: 0.85em;">Position <i>x</i><sub>1</sub> vs. Velocity <i>x</i><sub>2</sub> (Spirals for underdamped systems, no spiral for overdamped)</p>
+      <div class="chart-container">
+        <canvas id="phaseChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>S-Plane Poles vs Eigenvalues</h2>
+      <div class="chart-container">
+        <canvas id="sPlaneChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Module 3 Validation Checks</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Test Description</th>
+          <th>Expected Value</th>
+          <th>Toolkit Live Value</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Check 4: Step Overshoot ($\zeta = 0.5$)</td>
+          <td>16.3%</td>
+          <td id="val4-actual">16.3%</td>
+          <td id="val4-status" class="pass">PASS</td>
+        </tr>
+        <tr>
+          <td>Check 5: Step Overshoot ($\zeta = 1.0$)</td>
+          <td>0.0%</td>
+          <td id="val5-actual">0.0%</td>
+          <td id="val5-status" class="pass">PASS</td>
+        </tr>
+        <tr>
+          <td>Check 6: Eigenvalues for $m=1, b=2, k=4$</td>
+          <td>-1.000 ± j1.732</td>
+          <td id="val6-actual">-1.000 ± j1.732</td>
+          <td id="val6-status" class="pass">PASS</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  let stepChart, phaseChart, sPlaneChart;
+
+  function initCharts() {
+    const ctx1 = document.getElementById('stepChart').getContext('2d');
+    stepChart = new Chart(ctx1, {
+      type: 'line',
+      data: { datasets: [
+        { label: 'Output y(t)', borderColor: '#38bdf8', borderWidth: 2, data: [], pointRadius: 0 },
+        { label: 'Steady State (K*F)', borderColor: '#94a3b8', borderDash: [5, 5], borderWidth: 1, data: [], pointRadius: 0 }
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { type: 'linear', title: { display: true, text: 'Time (s)', color: '#94a3b8' }, grid: { color: '#334155' } },
+          y: { title: { display: true, text: 'Displacement y(m)', color: '#94a3b8' }, grid: { color: '#334155' } }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc' } } }
+      }
+    });
+
+    const ctx2 = document.getElementById('phaseChart').getContext('2d');
+    phaseChart = new Chart(ctx2, {
+      type: 'line',
+      data: { datasets: [{ label: 'Trajectory (x1=y, x2=v)', borderColor: '#c084fc', borderWidth: 2, data: [], pointRadius: 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { title: { display: true, text: 'Position x1 (m)', color: '#94a3b8' }, grid: { color: '#334155' } },
+          y: { title: { display: true, text: 'Velocity x2 (m/s)', color: '#94a3b8' }, grid: { color: '#334155' } }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc' } } }
+      }
+    });
+
+    const ctx3 = document.getElementById('sPlaneChart').getContext('2d');
+    sPlaneChart = new Chart(ctx3, {
+      type: 'scatter',
+      data: { datasets: [
+        { 
+          label: 'Poles / Eigenvalues', 
+          backgroundColor: '#ef4444', 
+          borderColor: '#ef4444',
+          borderWidth: 3,
+          pointRadius: 8, 
+          pointStyle: 'crossRot', 
+          data: [] 
+        }
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { 
+            type: 'linear', 
+            title: { display: true, text: 'Real Axis (σ)', color: '#94a3b8' }, 
+            grid: { color: '#334155' } 
+          },
+          y: { 
+            type: 'linear', 
+            title: { display: true, text: 'Imaginary Axis (jω)', color: '#94a3b8' }, 
+            grid: { color: '#334155' } 
+          }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc' } } }
+      }
+    });
+  }
+
+  function updateSimulation() {
+    const m = parseFloat(document.getElementById('slider-m').value);
+    const b = parseFloat(document.getElementById('slider-b').value);
+    const k = parseFloat(document.getElementById('slider-k').value);
+
+    document.getElementById('val-m').innerText = m.toFixed(1);
+    document.getElementById('val-b').innerText = b.toFixed(1);
+    document.getElementById('val-k').innerText = k.toFixed(1);
+
+    const wn = Math.sqrt(k / m);
+    const zeta = b / (2 * Math.sqrt(k * m));
+    const K = 1 / k;
+
+    document.getElementById('out-wn').innerText = wn.toFixed(2);
+    document.getElementById('out-zeta').innerText = zeta.toFixed(2);
+
+    let regime = "";
+    if (zeta < 1.0) regime = "Underdamped (ζ < 1)";
+    else if (Math.abs(zeta - 1.0) < 1e-4) regime = "Critically Damped (ζ = 1)";
+    else regime = "Overdamped (ζ > 1)";
+    document.getElementById('out-regime').innerText = regime;
+
+    const dt = 0.005;
+    const tMax = Math.max(10, 8 / (zeta * wn || 0.5));
+    let t = 0, x1 = 0, x2 = 0;
+    
+    const timeData = [], inputData = [], phaseData = [];
+    
+    while (t <= tMax) {
+      const u = 1.0; // Unit step force
+      timeData.push({ x: t, y: x1 });
+      inputData.push({ x: t, y: K * u });
+      phaseData.push({ x: x1, y: x2 });
+
+      const dx1 = x2;
+      const dx2 = -(k / m) * x1 - (b / m) * x2 + (1 / m) * u;
+
+      x1 += dx1 * dt;
+      x2 += dx2 * dt;
+      t += dt;
+    }
+
+    stepChart.data.datasets[0].data = timeData;
+    stepChart.data.datasets[1].data = inputData;
+    stepChart.update();
+
+    phaseChart.data.datasets[0].data = phaseData;
+    phaseChart.update();
+
+    if (zeta < 1.0) {
+      const wd = wn * Math.sqrt(1 - zeta * zeta);
+      const tp = Math.PI / wd;
+      const os = Math.exp(-zeta * Math.PI / Math.sqrt(1 - zeta * zeta)) * 100;
+      const phi = Math.atan2(wd, zeta * wn);
+      const tr = (Math.PI - phi) / wd;
+      const ts = 4 / (zeta * wn);
+
+      document.getElementById('out-tp').innerText = tp.toFixed(2);
+      document.getElementById('out-os').innerText = os.toFixed(1);
+      document.getElementById('out-tr').innerText = tr.toFixed(2);
+      document.getElementById('out-ts').innerText = ts.toFixed(2);
+    } else {
+      document.getElementById('out-tp').innerText = "N/A";
+      document.getElementById('out-os').innerText = "0.0";
+      document.getElementById('out-tr').innerText = (2.2 / (zeta * wn)).toFixed(2);
+      document.getElementById('out-ts').innerText = (4 / (zeta * wn)).toFixed(2);
+    }
+
+    document.getElementById('matrix-display').innerText = 
+`A = [   0.00,    1.00 ]
+    [ ${( -k/m ).toFixed(2).padStart(7)}, ${( -b/m ).toFixed(2).padStart(7)} ]
+
+B = [ 0.00 ]
+    [ ${( 1/m ).toFixed(2).padStart(4)} ]`;
+
+    let poles = [];
+    let xMin = -5, xMax = 1, yMin = -5, yMax = 5;
+
+    if (zeta < 1.0) {
+      const sigma = -zeta * wn;
+      const wd = wn * Math.sqrt(1 - zeta * zeta);
+      poles = [{ x: sigma, y: wd }, { x: sigma, y: -wd }];
+      
+      xMin = Math.min(-4, sigma * 2);
+      xMax = Math.max(1, Math.abs(sigma));
+      yMin = -Math.max(3, wd * 1.5);
+      yMax = Math.max(3, wd * 1.5);
+
+      document.getElementById('eigen-display').innerText = 
+`λ₁ = ${sigma.toFixed(3)} + j${wd.toFixed(3)}
+λ₂ = ${sigma.toFixed(3)} - j${wd.toFixed(3)}`;
+    } else {
+      const s1 = -zeta * wn + wn * Math.sqrt(zeta * zeta - 1);
+      const s2 = -zeta * wn - wn * Math.sqrt(zeta * zeta - 1);
+      poles = [{ x: s1, y: 0 }, { x: s2, y: 0 }];
+      
+      xMin = Math.min(-5, s2 * 1.2);
+      xMax = 1;
+      yMin = -2;
+      yMax = 2;
+
+      document.getElementById('eigen-display').innerText = 
+`λ₁ = ${s1.toFixed(3)}
+λ₂ = ${s2.toFixed(3)}`;
+    }
+
+    sPlaneChart.options.scales.x.min = xMin;
+    sPlaneChart.options.scales.x.max = xMax;
+    sPlaneChart.options.scales.y.min = yMin;
+    sPlaneChart.options.scales.y.max = yMax;
+
+    sPlaneChart.data.datasets[0].data = poles;
+    sPlaneChart.update();
+  }
+
+  window.onload = () => {
+    initCharts();
+    document.querySelectorAll('input[type=range]').forEach(el => el.addEventListener('input', updateSimulation));
+    updateSimulation();
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Module 4: Guess the Sensor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#0f172a;color:#f8fafc;margin:0;padding:18px;line-height:1.6}.container{max-width:1000px;margin:auto}h1,h2{color:#38bdf8;line-height:1.3}.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;margin:18px 0;min-width:0}a{color:#7dd3fc}nav{display:flex;gap:16px;flex-wrap:wrap}.note{color:#cbd5e1}.chart{position:relative;height:420px}button,input{font:inherit}button{background:#075985;color:white;border:1px solid #38bdf8;border-radius:7px;padding:10px 16px;cursor:pointer;margin:5px 6px 5px 0}button:disabled{opacity:.5;cursor:default}label{display:block;margin-top:12px}input{background:#0f172a;color:#fff;border:1px solid #94a3b8;border-radius:5px;padding:10px;width:100%;max-width:260px}.fields{display:flex;gap:24px;flex-wrap:wrap}.fields>div{flex:1;min-width:180px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{padding:10px;border:1px solid #64748b;text-align:left}.pass{color:#86efac}.fail{color:#fda4af}[hidden]{display:none!important}#message{color:#fda4af}#score{font-weight:bold}@media(max-width:600px){body{padding:10px}.card{padding:14px}.chart{height:380px}h1{font-size:25px}th,td{padding:7px;font-size:14px}}
+</style>
+</head>
+<body>
+<main class="container">
+<nav><a href="index.html">Module 1</a><a href="module2.html">Module 2</a><a href="module3.html">Module 3</a><span>Module 4</span></nav>
+<h1>Module 4: Guess the Sensor</h1>
+<p>Predict, then check: read a noisy response, estimate the hidden parameters, and submit your guess before revealing the sensor.</p>
+<section class="card">
+<h2>Hidden sensor</h2><p id="challenge"></p>
+<p class="note">Use the time and amplitude coordinates to estimate the parameters. Tap or hover over the curve to read points. The response includes small measurement noise.</p>
+<div class="chart"><canvas id="responseChart" role="img" aria-label="Hidden sensor response versus time"></canvas></div>
+</section>
+<section class="card">
+<h2>Your estimate</h2>
+<p>Each parameter earns 50 points when its relative error is at most 10%; otherwise it earns 0. Both within 10% earns 100/100. One scored submission per sensor.</p>
+<form id="guessForm">
+<div class="fields">
+<div><label for="estimate1" id="label1"></label><input id="estimate1" type="number" step="any" min="0" required inputmode="decimal"></div>
+<div><label for="estimate2" id="label2"></label><input id="estimate2" type="number" step="any" min="0" required inputmode="decimal"></div>
+</div>
+<p id="message" role="alert"></p>
+<button type="submit" id="submitGuess">Submit guess and reveal</button>
+<button type="button" id="hintButton">Hint</button>
+<button type="button" id="newButton">New sensor</button>
+<p id="hintText" class="note" hidden></p>
+</form>
+</section>
+<section class="card" id="reveal" hidden aria-live="polite">
+<h2>Results</h2><p id="roundScore"></p>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Your guess</th><th>True value</th><th>Relative error</th><th>Points</th></tr></thead><tbody id="resultRows"></tbody></table></div>
+<p id="explanation"></p>
+<p class="note">The graph now compares the noisy observations, the true response, and your estimated response. For sine challenges, the input is also shown.</p>
+</section>
+<section class="card"><h2>Session score</h2><p id="score" aria-live="polite"></p><p class="note">Starting a new sensor before submitting skips that sensor. It does not add points or a scored round. Scores last until this page is reloaded.</p></section>
+<p id="loadError" role="alert" hidden>The chart library could not load. Check your internet connection and reload this page.</p>
+</main>
+<script>
+(() => {
+'use strict';
+const get = id => document.getElementById(id);
+let chart, round, total = 0, rounds = 0;
+const randomBetween = (a,b) => a + Math.random() * (b-a);
+
+// Closed-form responses, with unit step or unit-amplitude sine input.
+function response(sensor,t) {
+  if (sensor.kind === 'firstStep') {
+    return sensor.K * (-Math.expm1(-t / sensor.tau));
+  }
+  if (sensor.kind === 'firstSine') {
+    const q = sensor.omega * sensor.tau;
+    return sensor.K / Math.sqrt(1 + q*q) *
+      Math.sin(sensor.omega*t - Math.atan(q));
+  }
+  const z = sensor.zeta, w = sensor.wn;
+  if (Math.abs(z-1) < 1e-8) return 1-(1+w*t)*Math.exp(-w*t);
+  if (z < 1) {
+    const wd = w * Math.sqrt(1-z*z);
+    return 1-Math.exp(-z*w*t)*
+      (Math.cos(wd*t) + z*w/wd*Math.sin(wd*t));
+  }
+  const r = Math.sqrt(z*z-1);
+  const slow = -w/(z+r), fast = -w*(z+r), gap = slow-fast;
+  const e = Math.exp(slow*t);
+  return 1-e + slow*e*(-Math.expm1(-gap*t))/gap;
+}
+function parameterScore(guess,trueValue) {
+  const error = Math.abs(guess-trueValue)/trueValue;
+  return {error, points:error <= 0.1 + 1e-12 ? 50 : 0};
+}
+function points(sensor,times) {
+  return times.map(t=>({x:t,y:response(sensor,t)}));
+}
+function dataset(label,data,color,extra={}) {
+  return {label,data,borderColor:color,backgroundColor:color,
+    pointRadius:0,borderWidth:2,tension:0,...extra};
+}
+function render(revealed=false) {
+  const datasets = [dataset('Noisy observations',round.noisy,'#94a3b8',
+    {showLine:false,pointRadius:2,borderWidth:0})];
+  if(round.kind === 'firstSine') datasets.push(dataset('Input x(t)',
+    round.times.map(t=>({x:t,y:Math.sin(round.omega*t)})),
+    '#c084fc',{borderDash:[5,4]}));
+  if(revealed) {
+    datasets.push(dataset('True response',points(round,round.times),'#38bdf8'));
+    datasets.push(dataset('Your estimated response',points(round.guess,round.times),
+      '#fb923c',{borderDash:[7,4]}));
+  }
+  chart.data.datasets=datasets;
+  chart.options.scales.x.max=round.end;
+  chart.update();
+}
+function newSensor() {
+  const kind = ['firstStep','firstSine','secondStep'][Math.floor(Math.random()*3)];
+  round={kind,submitted:false};
+  if(kind === 'secondStep') {
+    // Underdamped range gives a visible peak for fair parameter estimation.
+    round.zeta=randomBetween(.25,.65);round.wn=randomBetween(1.5,4);
+    round.end=24;
+    get('challenge').textContent='Second-order sensor; unit step input at t = 0, initial rest, static gain K = 1. Estimate ζ and ωn.';
+    get('label1').textContent='Damping ratio ζ (0 < ζ < 1)';
+    get('label2').textContent='Natural frequency ωn (rad/s)';
+    get('hintText').textContent='Read final value y∞, first peak yp, and peak time tp. Let Mp = (yp − y∞)/y∞ (a fraction). Then ζ = −ln(Mp)/√(π² + ln²(Mp)), and ωn = π/[tp√(1 − ζ²)]. Average nearby noisy points when estimating the peak.';
+  } else {
+    round.K=randomBetween(.8,2.5);
+    round.tau=kind === 'firstStep' ? randomBetween(.8,3) : randomBetween(.4,1.5);
+    get('label1').textContent='Static gain K';get('label2').textContent='Time constant τ (s)';
+    if(kind === 'firstStep') {
+      round.end=24;
+      get('challenge').textContent='First-order sensor; unit step input at t = 0, initial output 0. Estimate K and τ.';
+      get('hintText').textContent='For a unit step, K is the final output. τ is the time at 63.2% of that final value. Alternatively ln[(K − y)/K] versus time has slope −1/τ. Average late points to estimate K; avoid taking ln of nonpositive noisy errors.';
+    } else {
+      round.omega=Number(randomBetween(.7,1.5).toFixed(2));
+      round.end=4*2*Math.PI/round.omega;
+      get('challenge').textContent='First-order sensor; steady-state input x(t) = sin('+round.omega.toFixed(2)+'t), ω = '+round.omega.toFixed(2)+' rad/s. Input amplitude = 1. Estimate K and τ. The transient has already decayed.';
+      get('hintText').textContent='Read output amplitude B and time lag Δt between corresponding input and output peaks. Phase lag θ = ωΔt in radians. Then τ = tan(θ)/ω and K = B√[1 + (ωτ)²]. Use several cycles to reduce noise effects.';
+    }
+  }
+  const scale=round.kind==='secondStep' ? 1 : round.K;
+  round.times=Array.from({length:801},(_,i)=>i*round.end/800);
+  round.noisy=round.times.map(t=>({x:t,y:response(round,t)+randomBetween(-.008,.008)*scale}));
+  get('estimate1').value='';get('estimate2').value='';
+  get('estimate1').disabled=false;get('estimate2').disabled=false;
+  get('submitGuess').disabled=false;get('reveal').hidden=true;
+  get('hintText').hidden=true;get('message').textContent='';
+  get('score').textContent=total+' / '+(100*rounds)+' points across '+rounds+' scored rounds.';
+  render();
+}
+function submit(event) {
+  event.preventDefault();
+  if(round.submitted)return;
+  const g1=Number(get('estimate1').value),g2=Number(get('estimate2').value);
+  if(!Number.isFinite(g1)||!Number.isFinite(g2)||g1<=0||g2<=0||
+    (round.kind==='secondStep' && g1>=1)) {
+    get('message').textContent='Enter positive finite values; for this second-order challenge ζ must be between 0 and 1.';return;
+  }
+  const second=round.kind==='secondStep';
+  const keys=second?['zeta','wn']:['K','tau'];
+  const names=second?['ζ','ωn (rad/s)']:['K','τ (s)'];
+  round.guess={kind:round.kind,omega:round.omega};
+  round.guess[keys[0]]=g1;round.guess[keys[1]]=g2;
+  const values=[g1,g2];
+  // Reject estimates that cannot produce a finite comparison curve.
+  if(points(round.guess,round.times).some(p=>!Number.isFinite(p.y))) {
+    get('message').textContent='These values exceed the numerical range. Please enter a smaller estimate.';return;
+  }
+  let earned=0;
+  get('resultRows').innerHTML=keys.map((key,i)=>{
+    const result=parameterScore(values[i],round[key]);earned+=result.points;
+    return '<tr><td>'+names[i]+'</td><td>'+values[i].toPrecision(6)+
+      '</td><td>'+round[key].toPrecision(6)+'</td><td>'+(100*result.error).toFixed(2)+
+      '%</td><td class="'+(result.points?'pass':'fail')+'">'+result.points+' / 50</td></tr>';
+  }).join('');
+  round.submitted=true;total+=earned;rounds++;
+  get('roundScore').textContent='This round: '+earned+' / 100 points.';
+  get('score').textContent=total+' / '+(100*rounds)+' points across '+rounds+' scored rounds.';
+  get('explanation').textContent=second?
+    'The overshoot determines ζ; the first peak time then determines ωn. The true response has overshoot '+(100*Math.exp(-Math.PI*round.zeta/Math.sqrt(1-round.zeta**2))).toFixed(2)+'% and peak time '+(Math.PI/(round.wn*Math.sqrt(1-round.zeta**2))).toFixed(3)+' s.':
+    round.kind==='firstStep'?'The final output is K = '+round.K.toFixed(4)+'. The 63.2% point occurs at τ = '+round.tau.toFixed(4)+' s.':
+    'The true output amplitude is '+(round.K/Math.sqrt(1+(round.omega*round.tau)**2)).toFixed(4)+', and phase lag is '+(Math.atan(round.omega*round.tau)*180/Math.PI).toFixed(2)+'°. Amplitude and phase together identify K and τ.';
+  get('message').textContent='';get('reveal').hidden=false;
+  get('estimate1').disabled=true;get('estimate2').disabled=true;get('submitGuess').disabled=true;
+  render(true);
+}
+get('guessForm').addEventListener('submit',submit);
+get('newButton').addEventListener('click',newSensor);
+get('hintButton').addEventListener('click',()=>{get('hintText').hidden=!get('hintText').hidden;});
+if(typeof Chart==='undefined') {
+ get('loadError').hidden=false;get('submitGuess').disabled=true;get('newButton').disabled=true;get('hintButton').disabled=true;
+ return;
+}
+chart=new Chart(get('responseChart'),{type:'line',data:{datasets:[]},options:{
+ responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+ interaction:{mode:'nearest',intersect:false},
+ scales:{x:{type:'linear',min:0,title:{display:true,text:'Time (s)',color:'#cbd5e1'},ticks:{color:'#cbd5e1',maxTicksLimit:6},grid:{color:'#334155'}},
+ y:{title:{display:true,text:'Output / input amplitude',color:'#cbd5e1'},ticks:{color:'#cbd5e1'},grid:{color:'#334155'}}},
+ plugins:{legend:{position:'bottom',labels:{color:'#f8fafc',boxWidth:18}},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>item.dataset.label+': '+item.parsed.y.toFixed(4)}}}
+}});
+newSensor();
+})();
+</script>
+</body>
+</html>

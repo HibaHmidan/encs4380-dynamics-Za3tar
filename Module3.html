@@ -44,12 +44,15 @@
 </head>
 <body>
 <main>
-  <nav>
-    <a href="index.html">Module 1</a>
-    <a href="module2.html">Module 2</a>
-    <strong>Module 3</strong>
-    <a href="module4.html">Module 4</a>
-  </nav>
+  <nav aria-label="Modules and bonuses">
+  <a href="index.html">Module 1</a>
+  <a href="module2.html">Module 2</a>
+  <strong aria-current="page">Module 3</strong>
+  <a href="module4.html">Module 4</a>
+  <span aria-hidden="true" style="opacity:.65">| Bonus:</span>
+  <a href="bonus.html">Euler Solver</a>
+  <a href="superposition.html">Superposition</a>
+</nav>
 
   <h1>Module 3: Second-Order Response &amp; State Space</h1>
   <p class="muted">Mass–spring–damper: m ẍ + b ẋ + kx = F(t). Here F(t) is a unit step (1 N), starting from rest.</p>

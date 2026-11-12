@@ -20,7 +20,7 @@ Birzeit University, ENCS4380 Interfacing Techniques (Instructor: Dr. Wasel Ghane
 | 1. First-order time response | Hiba | Done |
 | 2. First-order frequency response | Hala | Done |
 | 3. Second-order response | Othman | Done |
-| 4. Guess the sensor | FILL IN NAME | Not started |
+| 4. Guess the sensor | Hala | Done |
 
 ## Module 1: First-order time response (`index.html`)
 

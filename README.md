@@ -50,6 +50,7 @@ Nothing to install. Open the live link above, or open `index.html` in any browse
 ## Screenshots
 ### Module 2: First-order frequency response
 <img width="767" height="438" alt="image" src="https://github.com/user-attachments/assets/1f0a29e8-409d-4ce8-a851-e58d00e73db8" />
+
 ### Module 4: Guess the sensor challenge
 
 **Screenshot 1:**

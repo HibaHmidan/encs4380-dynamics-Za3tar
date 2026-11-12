@@ -47,6 +47,11 @@ A thermometer is a first-order sensor: it reads the past, smoothed. This page sh
 
 ## How to run it
 Nothing to install. Open the live link above, or open `index.html` in any browser. It needs an internet connection, because the graphs use the Plotly library.
+## Screenshots
+
+### Module 2: First-order frequency response
+<img width="300" height="438" alt="image" src="https://github.com/user-attachments/assets/60d297bf-c2c0-4bb2-bb15-20db3cb49bf4" />
+
 
 ## Tools used
 - HTML and JavaScript, with [Plotly.js](https://plotly.com/javascript/) for the graphs.

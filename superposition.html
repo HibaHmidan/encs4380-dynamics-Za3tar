@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bonus 2: Superposition</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:18px;background:#0f172a;color:#f8fafc;font:16px/1.6 system-ui,sans-serif}main{max-width:1050px;margin:auto}a,h1,h2,h3{color:#7dd3fc}nav{display:flex;flex-wrap:wrap;gap:14px}.card{padding:20px;margin:18px 0;border:1px solid #334155;border-radius:12px;background:#1e293b}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:16px}.wave{padding:14px;border:1px solid #64748b;border-radius:8px}label{display:block;margin:12px 0 4px}input[type=range]{width:100%;accent-color:#38bdf8}button,select{font:inherit;padding:9px;background:#0f172a;color:#fff;border:1px solid #94a3b8;border-radius:6px;max-width:100%}.chart{position:relative;height:420px}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{border:1px solid #64748b;padding:9px;text-align:left}.note{color:#cbd5e1}output{color:#86efac;font-weight:bold}code{overflow-wrap:anywhere}.disabled{opacity:.55}#loadError{color:#fda4af}@media(max-width:600px){body{padding:10px}.card{padding:14px}h1{font-size:25px}.chart{height:370px}th,td{padding:6px;font-size:14px}}
+</style></head><body><main>
+<nav><a href="index.html">Module 1</a><a href="module2.html">Module 2</a><a href="Module3.html">Module 3</a><a href="module4.html">Module 4</a><a href="bonus.html">Euler bonus</a><span>Superposition</span></nav>
+<h1>Bonus 2: Superposition</h1>
+<p>Build an input from two or three sine waves and see how a first-order sensor changes the combined waveform.</p>
+<section class="card"><h2>Model</h2>
+<p>τ dy/dt + y = x(t), with static gain K = 1.</p>
+<p><code>x(t) = Σ Aᵢ sin(ωᵢt)</code><br><code>yss(t) = Σ Aᵢ Mᵢ sin(ωᵢt + φᵢ)</code><br><code>Mᵢ = 1/√[1 + (ωᵢτ)²], φᵢ = −atan(ωᵢτ)</code></p>
+<p class="note">These are steady-state responses after the transient has decayed. The output need not start at zero. Frequencies are in rad/s. Superposition means the response to the sum equals the sum of the individual responses.</p>
+</section>
+<section class="card"><h2>Predict, then check</h2>
+<p>For two input components of equal amplitude but different frequencies, which has the smaller output amplitude?</p>
+<label for="prediction">Your prediction</label>
+<select id="prediction"><option value="">Choose…</option><option value="higher">The component with the higher frequency</option><option value="lower">The component with the lower frequency</option><option value="equal">Both always have equal output amplitude</option></select>
+<button id="check" type="button">Check</button><p id="feedback" aria-live="polite"></p>
+</section>
+<section class="card"><h2>Build the input</h2>
+<label for="tau">Time constant τ = <output id="tauValue"></output> s</label>
+<input id="tau" type="range" min="0.01" max="1" step="0.01" value="0.2">
+<label for="waveCount">Number of input components</label>
+<select id="waveCount"><option value="2">Two sine waves</option><option value="3">Three sine waves</option></select>
+<div class="grid" id="controls"></div>
+<p id="inputFormula"></p><p id="cutoff"></p>
+<button id="reset" type="button">Reset example</button>
+</section>
+<section class="card"><h2>Combined input and output</h2>
+<div class="chart"><canvas id="combined" role="img" aria-label="Combined input and sensor output versus time"></canvas></div>
+<p class="note">The time window shows three periods of the slowest enabled component. Unequal attenuation and phase shifts can change the shape of the sum. The linear sensor creates no new frequencies.</p></section>
+<section class="card"><h2>Individual output components</h2>
+<div class="chart"><canvas id="parts" role="img" aria-label="Individual output sine waves versus time"></canvas></div>
+<p class="note">Adding these output components gives the output curve in the combined plot.</p>
+<div class="table-wrap"><table><thead><tr><th>Component</th><th>Aᵢ</th><th>ωᵢ (rad/s)</th><th>Mᵢ</th><th>Output amplitude AᵢMᵢ</th><th>Phase (°)</th><th>δᵢ (%)</th></tr></thead><tbody id="rows"></tbody></table></div>
+<p class="note">δᵢ = Mᵢ − 1 describes each component's normalized amplitude error. A larger input amplitude can still produce a larger output amplitude even at higher frequency.</p>
+</section>
+<p id="loadError" hidden role="alert">Charts could not load. Check your internet connection and reload.</p>
+</main><script>
+(() => {
+'use strict';
+const get=id=>document.getElementById(id);
+const defaults=[{A:1,w:2},{A:.3,w:20},{A:.2,w:10}];
+const colors=['#38bdf8','#fb923c','#c084fc'];
+get('controls').innerHTML=defaults.map((c,i)=>`<div class="wave" id="wave${i}"><h3>Component ${i+1}</h3><label for="amp${i}">Amplitude A${i+1} = <output id="av${i}"></output></label><input id="amp${i}" type="range" min="0" max="2" step="0.05" value="${c.A}"><label for="freq${i}">ω${i+1} = <output id="wv${i}"></output> rad/s</label><input id="freq${i}" type="range" min="1" max="20" step="0.5" value="${c.w}"></div>`).join('');
+function component(A,w,tau){const q=w*tau;return {A,w,M:1/Math.sqrt(1+q*q),phi:-Math.atan(q)};}
+function inputAt(c,t){return c.A*Math.sin(c.w*t);}
+function outputAt(c,t){return c.A*c.M*Math.sin(c.w*t+c.phi);}
+function sample(tau,waves){
+ const c=waves.map(p=>component(p.A,p.w,tau));
+ const end=6*Math.PI/Math.min(...c.map(p=>p.w));
+ const N=Math.max(900,Math.ceil(end*Math.max(...c.map(p=>p.w))/(2*Math.PI)*60));
+ const input=[],output=[],parts=c.map(()=>[]);
+ for(let i=0;i<=N;i++){
+  const t=i*end/N;let x=0,y=0;
+  c.forEach((p,j)=>{const yi=outputAt(p,t);x+=inputAt(p,t);y+=yi;parts[j].push({x:t,y:yi});});
+  input.push({x:t,y:x});output.push({x:t,y});
+ }
+ return {c,end,input,output,parts};
+}
+let combinedChart,partsChart;
+function options(){return {responsive:true,maintainAspectRatio:false,animation:false,parsing:false,interaction:{intersect:false,mode:'nearest'},scales:{x:{type:'linear',min:0,title:{display:true,text:'Time (s)',color:'#cbd5e1'},ticks:{color:'#cbd5e1',maxTicksLimit:6},grid:{color:'#334155'}},y:{title:{display:true,text:'Amplitude',color:'#cbd5e1'},ticks:{color:'#cbd5e1'},grid:{color:'#334155'}}},plugins:{legend:{position:'bottom',labels:{color:'#f8fafc',boxWidth:18}},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>item.dataset.label+': '+item.parsed.y.toFixed(4)}}}};}
+function line(label,data,color,dash=[]){return {label,data,borderColor:color,borderDash:dash,borderWidth:2,pointRadius:0,tension:0};}
+function draw(){
+ const tau=Number(get('tau').value),count=Number(get('waveCount').value);
+ get('tauValue').textContent=tau.toFixed(2);
+ const waves=[];
+ defaults.forEach((_,i)=>{
+  const active=i<count,A=Number(get('amp'+i).value),w=Number(get('freq'+i).value);
+  get('av'+i).textContent=A.toFixed(2);get('wv'+i).textContent=w.toFixed(1);
+  get('amp'+i).disabled=!active;get('freq'+i).disabled=!active;
+  get('wave'+i).classList.toggle('disabled',!active);
+  if(active)waves.push({A,w});
+ });
+ const r=sample(tau,waves);
+ get('inputFormula').textContent='x(t) = '+waves.map(p=>p.A.toFixed(2)+' sin('+p.w.toFixed(1)+'t)').join(' + ');
+ get('cutoff').textContent='Cutoff ωc = 1/τ = '+(1/tau).toFixed(3)+' rad/s.';
+ combinedChart.data.datasets=[line('Combined input x(t)',r.input,'#94a3b8',[5,4]),line('Combined output yss(t)',r.output,'#38bdf8')];
+ partsChart.data.datasets=r.parts.map((p,i)=>line('Output component '+(i+1),p,colors[i]));
+ for(const chart of [combinedChart,partsChart]){chart.options.scales.x.max=r.end;chart.update();}
+ get('rows').innerHTML=r.c.map((p,i)=>`<tr><td>${i+1}</td><td>${p.A.toFixed(2)}</td><td>${p.w.toFixed(1)}</td><td>${p.M.toFixed(4)}</td><td>${(p.A*p.M).toFixed(4)}</td><td>${(p.phi*180/Math.PI).toFixed(2)}</td><td>${(100*(p.M-1)).toFixed(2)}</td></tr>`).join('');
+}
+get('check').addEventListener('click',()=>{const a=get('prediction').value;get('feedback').textContent=!a?'Choose an answer first.':(a==='higher'?'Correct! ':'Not quite. ')+'At equal input amplitude and fixed positive τ, the higher-frequency component has a smaller output amplitude. Its phase lag magnitude is also larger.';});
+function reset(){get('tau').value=.2;get('waveCount').value=2;defaults.forEach((p,i)=>{get('amp'+i).value=p.A;get('freq'+i).value=p.w;});get('prediction').value='';get('feedback').textContent='';draw();}
+if(typeof Chart==='undefined'){get('loadError').hidden=false;document.querySelectorAll('input,select,button').forEach(el=>el.disabled=true);return;}
+combinedChart=new Chart(get('combined'),{type:'line',data:{datasets:[]},options:options()});
+partsChart=new Chart(get('parts'),{type:'line',data:{datasets:[]},options:options()});
+get('tau').addEventListener('input',draw);get('waveCount').addEventListener('change',draw);get('reset').addEventListener('click',reset);
+defaults.forEach((_,i)=>{get('amp'+i).addEventListener('input',draw);get('freq'+i).addEventListener('input',draw);});
+draw();
+})();
+</script></body></html>

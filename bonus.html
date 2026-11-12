@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bonus: Euler vs Closed-form</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:18px;background:#0f172a;color:#f8fafc;font:16px/1.6 system-ui,sans-serif}main{max-width:1000px;margin:auto}a,h1,h2{color:#7dd3fc}nav{display:flex;gap:16px;flex-wrap:wrap}.card{padding:20px;margin:18px 0;border:1px solid #334155;background:#1e293b;border-radius:12px}.chart{position:relative;height:420px}select,button{font:inherit;padding:9px;background:#0f172a;color:white;border:1px solid #94a3b8;border-radius:6px;max-width:100%}input[type=range]{width:100%;accent-color:#38bdf8}label{display:block;margin-top:15px}.muted{color:#cbd5e1}.metrics{display:flex;gap:18px;flex-wrap:wrap}.metrics>div{padding:12px;background:#0f172a;border-radius:8px;flex:1;min-width:170px}strong{color:#86efac}code{overflow-wrap:anywhere}#error{color:#fda4af}@media(max-width:600px){body{padding:10px}.card{padding:14px}h1{font-size:25px}.chart{height:370px}}
+</style>
+</head>
+<body><main>
+<nav><a href="index.html">Module 1</a><a href="module2.html">Module 2</a><a href="Module3.html">Module 3</a><a href="module4.html">Module 4</a><span>Bonus</span></nav>
+<h1>Bonus: Our Euler ODE Solver</h1>
+<p>Compare our explicit Euler solver with the closed-form step response of the same mass–spring–damper system.</p>
+<section class="card">
+<h2>Model and numerical method</h2>
+<p>m x'' + b x' + k x = F(t). Here m = 1 kg, k = 4 N/m, and F(t) = 1 N for t ≥ 0. Initial position and velocity are zero. Final position = F/k = 0.25 m.</p>
+<p>With v = x', the explicit Euler updates are:</p>
+<p><code>x[n+1] = x[n] + h v[n]</code><br><code>v[n+1] = v[n] + h (1 − b v[n] − 4 x[n])</code></p>
+<p class="muted">Both right-hand sides use the old values x[n] and v[n]. h is the time step in seconds. The solver is implemented below in JavaScript; Chart.js only draws the curves.</p>
+</section>
+<section class="card">
+<h2>Predict, then check</h2>
+<p>Keeping the same system, what happens to numerical accuracy when the Euler time step h becomes smaller?</p>
+<label for="prediction">Your prediction</label>
+<select id="prediction"><option value="">Choose…</option><option value="better">The Euler curve approaches the closed-form curve</option><option value="worse">The Euler curve moves farther away</option><option value="same">The Euler curve stays unchanged</option></select>
+<button id="check" type="button">Check</button><p id="feedback" aria-live="polite"></p>
+</section>
+<section class="card">
+<h2>Experiment</h2>
+<label for="damping">Damping case (m = 1, k = 4)</label>
+<select id="damping"><option value="2">Underdamped: b = 2, ζ = 0.5</option><option value="4">Critically damped: b = 4, ζ = 1</option><option value="8">Overdamped: b = 8, ζ = 2</option></select>
+<label for="step">Euler step h = <strong id="stepValue"></strong> s</label>
+<input id="step" type="range" min="0.005" max="0.1" step="0.005" value="0.05">
+<p class="muted">Try h = 0.100 s, then 0.050 s, then 0.025 s. All offered steps are inside the Euler stability limit for these three systems.</p>
+<div class="chart"><canvas id="response" role="img" aria-label="Euler and closed-form step responses versus time"></canvas></div>
+<div class="metrics"><div>Maximum position error<br><strong id="maxError"></strong></div><div>Error at t = 12 s<br><strong id="endError"></strong></div><div>Euler steps<br><strong id="count"></strong></div></div>
+</section>
+<section class="card"><h2>Absolute error</h2><p>|xEuler(t) − xClosed-form(t)| at the Euler time points.</p><div class="chart"><canvas id="errorChart" role="img" aria-label="Absolute Euler position error versus time"></canvas></div></section>
+<section class="card"><h2>Closed-form reference</h2><p id="formula"></p><p class="muted">Both methods use the same input, parameters, and initial conditions. The maximum error is measured over t = 0 to 12 s at the Euler time points; a plotted curve is not an independent experimental measurement.</p></section>
+<p id="error" role="alert" hidden>Charts could not load. Check your internet connection and reload.</p>
+</main>
+<script>
+(() => {
+'use strict';
+const get=id=>document.getElementById(id);
+const duration=12;
+// Unit-force response: final displacement = 1/k = 0.25 m.
+function closedForm(t,b) {
+ const wn=2,zeta=b/4;
+ if(b===4)return .25*(1-(1+wn*t)*Math.exp(-wn*t));
+ if(b<4){const wd=wn*Math.sqrt(1-zeta*zeta);return .25*(1-Math.exp(-zeta*wn*t)*(Math.cos(wd*t)+zeta*wn/wd*Math.sin(wd*t)));}
+ const root=Math.sqrt(b*b-16),s1=-8/(b+root),s2=-(b+root)/2;
+ return .25*(1+(s2*Math.exp(s1*t)-s1*Math.exp(s2*t))/(s1-s2));
+}
+// Explicit Euler: compute both new states before changing either old state.
+function solveEuler(b,h,end=duration){
+ let x=0,v=0,t=0;const data=[{x:0,y:0}];
+ const steps=Math.ceil(end/h-1e-10);
+ for(let n=1;n<=steps;n++){
+  const nextTime=Math.min(n*h,end),dt=nextTime-t;
+  const nextX=x+dt*v;
+  const nextV=v+dt*(1-b*v-4*x);
+  x=nextX;v=nextV;t=nextTime;
+  data.push({x:t,y:x});
+ }
+ return data;
+}
+function compare(b,h){
+ const euler=solveEuler(b,h);
+ const errors=euler.map(p=>({x:p.x,y:Math.abs(p.y-closedForm(p.x,b))}));
+ return {euler,errors,max:Math.max(...errors.map(p=>p.y)),end:errors[errors.length-1].y};
+}
+function chartOptions(yTitle){return {responsive:true,maintainAspectRatio:false,animation:false,parsing:false,interaction:{intersect:false,mode:'nearest'},scales:{x:{type:'linear',min:0,max:duration,title:{display:true,text:'Time (s)',color:'#cbd5e1'},ticks:{color:'#cbd5e1',maxTicksLimit:6},grid:{color:'#334155'}},y:{title:{display:true,text:yTitle,color:'#cbd5e1'},ticks:{color:'#cbd5e1'},grid:{color:'#334155'}}},plugins:{legend:{position:'bottom',labels:{color:'#f8fafc',boxWidth:18}},tooltip:{callbacks:{title:items=>'t = '+items[0].parsed.x.toFixed(3)+' s',label:item=>item.dataset.label+': '+item.parsed.y.toFixed(6)+' m'}}}};}
+let responseChart,errorChart;
+function draw(){
+ const b=Number(get('damping').value),h=Number(get('step').value),result=compare(b,h);
+ get('stepValue').textContent=h.toFixed(3);
+ const exact=Array.from({length:1201},(_,i)=>({x:i*duration/1200,y:closedForm(i*duration/1200,b)}));
+ responseChart.data.datasets=[
+  {label:'Closed-form',data:exact,borderColor:'#38bdf8',borderWidth:3,pointRadius:0},
+  {label:'Our Euler solver',data:result.euler,borderColor:'#fb923c',borderDash:[6,4],borderWidth:2,pointRadius:h>=.05?2:0}
+ ];
+ errorChart.data.datasets=[{label:'Absolute position error',data:result.errors,borderColor:'#c084fc',borderWidth:2,pointRadius:0}];
+ responseChart.update();errorChart.update();
+ get('maxError').textContent=result.max.toExponential(4)+' m';
+ get('endError').textContent=result.end.toExponential(4)+' m';
+ get('count').textContent=result.euler.length-1;
+ get('formula').textContent=b===2?
+ 'Underdamped: x(t) = 0.25 {1 − e^(−t) [cos(√3 t) + sin(√3 t)/√3]}.':b===4?
+ 'Critically damped: x(t) = 0.25 [1 − (1 + 2t)e^(−2t)].':
+ 'Overdamped: s1 = −4 + √12, s2 = −4 − √12; x(t) = 0.25 [1 + (s2 e^(s1 t) − s1 e^(s2 t))/(s1 − s2)].';
+}
+get('check').addEventListener('click',()=>{const a=get('prediction').value;get('feedback').textContent=!a?'Choose an answer first.':(a==='better'?'Correct! ':'Not quite. ')+'For these stable step sizes, reducing h reduces the Euler approximation error. Try the slider and compare the maximum error.';});
+if(typeof Chart==='undefined'){get('error').hidden=false;get('step').disabled=true;get('damping').disabled=true;return;}
+responseChart=new Chart(get('response'),{type:'line',data:{datasets:[]},options:chartOptions('Position x (m)')});
+errorChart=new Chart(get('errorChart'),{type:'line',data:{datasets:[]},options:chartOptions('Absolute error (m)')});
+get('step').addEventListener('input',draw);get('damping').addEventListener('change',draw);draw();
+})();
+</script>
+</body></html>

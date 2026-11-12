@@ -51,15 +51,17 @@ Nothing to install. Open the live link above, or open `index.html` in any browse
 ### Module 2: First-order frequency response
 <img width="767" height="438" alt="image" src="https://github.com/user-attachments/assets/1f0a29e8-409d-4ce8-a851-e58d00e73db8" />
 ### Module 4: Guess the sensor challenge
+**Screenshot 1:**
 <img width="1482" height="882" alt="image" src="https://github.com/user-attachments/assets/b990dd37-02e3-49f6-990c-8c1396f3751a" />
+**Screenshot 2:**
 <img width="1489" height="554" alt="image" src="https://github.com/user-attachments/assets/0d820c5a-0327-4f5b-af58-538d5b10e09b" />
 
 ### Module 3: Second-order response
 
-**Screenshot 1: Experimental Setup**
+**Screenshot 1:**
 <img width="1917" height="908" alt="Screenshot 2026-11-12 192143" src="https://github.com/user-attachments/assets/cec0d479-aa35-49e1-ba26-22e11d572e7f" />
 
-**Screenshot 2: Experimental Results**
+**Screenshot 2:**
 <img width="1917" height="1020" alt="Screenshot 2026-11-12 192132" src="https://github.com/user-attachments/assets/3299c706-73d6-4035-bff2-8d659fb1f988" />
 
 

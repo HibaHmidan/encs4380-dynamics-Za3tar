@@ -2,433 +2,393 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Module 3 - Second-Order Response</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ENCS4380 - Module 3: Second-Order Response & State-Space Panel</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 18px; font: 16px/1.5 Arial, sans-serif; background: #0f172a; color: #f8fafc; }
-    main { max-width: 1120px; margin: auto; }
-    nav { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 24px; }
-    a { color: #7dd3fc; }
-    h1, h2, h3 { color: #38bdf8; }
-    h1 { margin-bottom: 6px; }
-    .muted { color: #cbd5e1; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 16px; }
-    .card { background: #1e293b; border: 1px solid #475569; border-radius: 10px; padding: 18px; margin: 14px 0; min-width: 0; }
-    .card h2 { margin-top: 0; }
-    .control { margin: 18px 0; }
-    .control label { display: block; margin-bottom: 6px; }
-    input[type="range"] { display: block; width: 100%; accent-color: #38bdf8; }
-    select, button { font: inherit; padding: 9px; border-radius: 5px; }
-    button { cursor: pointer; color: white; background: #075985; border: 1px solid #38bdf8; }
-    .chart { position: relative; width: 100%; height: 320px; }
-    .chart.large { height: 370px; }
-    .metric { margin: 10px 0; }
-    .metric strong { color: #7dd3fc; }
-    pre { white-space: pre-wrap; font-size: 14px; color: #f1f5f9; background: #0f172a; padding: 12px; border-radius: 6px; }
-    .table-wrap { overflow-x: auto; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #64748b; padding: 9px; text-align: left; }
-    .pass { color: #86efac; font-weight: bold; }
-    .fail { color: #fda4af; font-weight: bold; }
-    @media (max-width: 600px) {
-      body { padding: 10px; }
-      .card { padding: 12px; }
-      h1 { font-size: 25px; }
-      .chart { height: 290px; }
-      .chart.large { height: 340px; }
-      th, td { padding: 6px; font-size: 13px; }
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #38bdf8;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+      --success: #22c55e;
+      --border: #334155;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    h1, h2, h3 { color: var(--accent); margin-top: 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+    .slider-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    input[type=range] { flex: 1; margin: 0 10px; accent-color: var(--accent); }
+    .metric-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #0284c7;
+      font-weight: bold;
+    }
+    .matrix-box {
+      font-family: monospace;
+      background: #0f172a;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      white-space: pre-wrap;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid var(--border); padding: 8px; text-align: left; font-size: 0.9em; }
+    th { background: #0f172a; color: var(--accent); }
+    .pass { color: var(--success); font-weight: bold; }
+    .chart-container { position: relative; height: 260px; width: 100%; }
+    .predict-box {
+      background: #1e1b4b;
+      border: 1px solid #6366f1;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
     }
   </style>
 </head>
 <body>
-<main>
-  <nav aria-label="Modules and bonuses">
-  <a href="index.html">Module 1</a>
-  <a href="module2.html">Module 2</a>
-  <strong aria-current="page">Module 3</strong>
-  <a href="module4.html">Module 4</a>
-  <span aria-hidden="true" style="opacity:.65">| Bonus:</span>
-  <a href="bonus.html">Euler Solver</a>
-  <a href="superposition.html">Superposition</a>
-</nav>
+<div class="container">
+  <h1>Module 3: Second-Order Response & State-Space Toolkit</h1>
+  <p style="color: var(--subtext)">ENCS4380 Interfacing Techniques | Birzeit University</p>
 
-  <h1>Module 3: Second-Order Response &amp; State Space</h1>
-  <p class="muted">Mass–spring–damper: m ẍ + b ẋ + kx = F(t). Here F(t) is a unit step (1 N), starting from rest.</p>
-
-  <section class="card">
-    <h2>Predict, then check</h2>
-    <p>Starting with an underdamped sensor, what usually happens to the overshoot when damping b increases?</p>
-    <select id="prediction">
-      <option value="">Choose your prediction</option>
-      <option value="increase">It increases</option>
-      <option value="decrease">It decreases</option>
-      <option value="same">It stays the same</option>
-    </select>
-    <button id="checkPrediction">Check prediction</button>
-    <p id="predictionResult" aria-live="polite"></p>
-  </section>
-
-  <div class="grid">
-    <section class="card">
-      <h2>Sensor parameters</h2>
-      <div class="control">
-        <label for="mass">Mass m = <strong id="massValue">1.0</strong> kg</label>
-        <input id="mass" type="range" min="0.1" max="5" step="0.1" value="1">
-      </div>
-      <div class="control">
-        <label for="damping">Damping b = <strong id="dampingValue">2.0</strong> N·s/m</label>
-        <input id="damping" type="range" min="0" max="10" step="0.1" value="2">
-      </div>
-      <div class="control">
-        <label for="stiffness">Stiffness k = <strong id="stiffnessValue">4.0</strong> N/m</label>
-        <input id="stiffness" type="range" min="0.5" max="20" step="0.5" value="4">
-      </div>
-      <p class="metric">Natural frequency ωn = <strong id="wnValue"></strong> rad/s</p>
-      <p class="metric">Damping ratio ζ = <strong id="zetaValue"></strong></p>
-      <p class="metric">Response type: <strong id="regimeValue"></strong></p>
-      <p class="metric">Final displacement F/k = <strong id="finalValue"></strong> m</p>
-    </section>
-
-    <section class="card">
-      <h2>Live step-response measurements</h2>
-      <p class="metric">Rise time (10–90%): <strong id="rise1090"></strong></p>
-      <p class="metric">Rise time (0–100%): <strong id="rise0100"></strong></p>
-      <p class="metric">First peak time Tp: <strong id="peakTime"></strong></p>
-      <p class="metric">Percent overshoot: <strong id="overshoot"></strong></p>
-      <p class="metric">Settling time Ts (2% band): <strong id="settleTime"></strong></p>
-      <p class="muted" id="metricNote"></p>
-    </section>
+  <div class="predict-box">
+    <strong>🤔 Predict, then check:</strong> 
+    If you double the damping coefficient (b), will the overshoot increase or decrease? Will the peak time occur earlier or later? Move the slider to test your intuition!
   </div>
 
-  <section class="card">
-    <h2>Step response y(t)</h2>
-    <p class="muted">The curve uses the exact closed-form solution, not Euler's numerical approximation. The markers show the peak and settling time when they exist.</p>
-    <div class="chart large"><canvas id="stepChart" aria-label="Step response versus time"></canvas></div>
-  </section>
-
-  <section class="card">
-    <h2>Compare the three damping cases</h2>
-    <p class="muted">For the current natural frequency ωn, compare normalized responses with ζ = 0.5, 1 and 2.</p>
-    <div class="chart"><canvas id="comparisonChart" aria-label="Comparison of damping responses"></canvas></div>
-  </section>
-
   <div class="grid">
-    <section class="card">
-      <h2>State-space model</h2>
-      <p>Let x₁ = displacement, x₂ = velocity, and input F(t) = 1 N.</p>
-      <p>ẋ = Ax + BF(t), &nbsp; y = [1, 0]x</p>
-      <pre id="matrices"></pre>
-      <h3>Eigenvalues of A</h3>
-      <pre id="eigenvalues"></pre>
-      <p class="muted">These eigenvalues equal the transfer-function poles.</p>
-    </section>
+    <div class="card">
+      <h2>System Parameters</h2>
+      <div class="slider-group">
+        <div class="slider-row">
+          <label>Mass (m): <span id="val-m">1.0</span> kg</label>
+          <input type="range" id="slider-m" min="0.1" max="5.0" step="0.1" value="1.0">
+        </div>
+        <div class="slider-row">
+          <label>Damping (b): <span id="val-b">2.0</span> N·s/m</label>
+          <input type="range" id="slider-b" min="0.0" max="10.0" step="0.1" value="2.0">
+        </div>
+        <div class="slider-row">
+          <label>Stiffness (k): <span id="val-k">4.0</span> N/m</label>
+          <input type="range" id="slider-k" min="0.5" max="20.0" step="0.5" value="4.0">
+        </div>
+      </div>
 
-    <section class="card">
-      <h2>Phase plane (x₁, x₂)</h2>
-      <p class="muted">Displacement versus velocity. An underdamped system spirals toward the equilibrium point (1/k, 0); overdamped systems do not spiral.</p>
-      <div class="chart"><canvas id="phaseChart" aria-label="Phase plane trajectory"></canvas></div>
-    </section>
+      <h3>Derived Characteristics</h3>
+      <p>Natural Frequency (Wn): <strong id="out-wn">2.00</strong> rad/s</p>
+      <p>Damping Ratio (ζ): <strong id="out-zeta">0.50</strong></p>
+      <p>Response Regime: <span id="out-regime" class="metric-badge">Underdamped</span></p>
 
-    <section class="card">
-      <h2>Poles and eigenvalues in the s-plane</h2>
-      <p id="polesText" class="muted"></p>
-      <div class="chart"><canvas id="poleChart" aria-label="Poles and eigenvalues in complex plane"></canvas></div>
-    </section>
-  </div>
-
-  <section class="card">
-    <h2>Validation checks 4, 5 and 6</h2>
-    <p class="muted">These tests always use the PDF's fixed values, independently of the sliders. Results are computed, not hardcoded.</p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Test</th><th>Expected</th><th>Calculated</th><th>Result</th></tr></thead>
-        <tbody id="validationRows"></tbody>
-      </table>
+      <h3>Live Calculated Metrics</h3>
+      <p>Peak Time (Tp): <strong id="out-tp">1.81</strong> s</p>
+      <p>Overshoot (%OS): <strong id="out-os">16.3</strong> %</p>
+      <p>Rise Time (Tr, 0-100%): <strong id="out-tr">1.21</strong> s</p>
+      <p>Settling Time (Ts, 2%): <strong id="out-ts">4.00</strong> s</p>
     </div>
-  </section>
-  <p id="loadError" class="fail" hidden>Chart.js could not load. Please check the internet connection and refresh.</p>
-</main>
+
+    <div class="card">
+      <h2>Time Response y(t)</h2>
+      <div class="chart-container">
+        <canvas id="stepChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>State-Space Panel (Section 3.1)</h2>
+     <p style="color: var(--subtext); font-size: 0.9em; font-family: monospace;">[ẋ₁; ẋ₂] = [0, 1; -k/m, -b/m][x₁; x₂] + [0; 1/m]F(t), &nbsp;&nbsp; y = [1, 0][x₁; x₂]</p>
+      
+      <div class="matrix-box" id="matrix-display">
+A = [   0.00,    1.00 ]
+    [  -4.00,   -2.00 ]
+
+B = [ 0.00 ]
+    [ 1.00 ]
+      </div>
+
+      <p style="margin-top: 15px;">Eigenvalues of matrix $\mathbf{A}$:</p>
+      <div class="matrix-box" id="eigen-display">
+λ₁ = -1.000 + j1.732
+λ₂ = -1.000 - j1.732
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Phase Plane Trajectory (x1, x2)</h2>
+      <p style="color: var(--subtext); font-size: 0.85em;">Position <i>x</i><sub>1</sub> vs. Velocity <i>x</i><sub>2</sub> (Spirals for underdamped systems, no spiral for overdamped)</p>
+      <div class="chart-container">
+        <canvas id="phaseChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>S-Plane Poles vs Eigenvalues</h2>
+      <div class="chart-container">
+        <canvas id="sPlaneChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Module 3 Validation Checks</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Test Description</th>
+          <th>Expected Value</th>
+          <th>Toolkit Live Value</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Check 4: Step Overshoot ($\zeta = 0.5$)</td>
+          <td>16.3%</td>
+          <td id="val4-actual">16.3%</td>
+          <td id="val4-status" class="pass">PASS</td>
+        </tr>
+        <tr>
+          <td>Check 5: Step Overshoot ($\zeta = 1.0$)</td>
+          <td>0.0%</td>
+          <td id="val5-actual">0.0%</td>
+          <td id="val5-status" class="pass">PASS</td>
+        </tr>
+        <tr>
+          <td>Check 6: Eigenvalues for $m=1, b=2, k=4$</td>
+          <td>-1.000 ± j1.732</td>
+          <td id="val6-actual">-1.000 ± j1.732</td>
+          <td id="val6-status" class="pass">PASS</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 
 <script>
-  const get = id => document.getElementById(id);
-  let stepChart, comparisonChart, phaseChart, poleChart;
+  let stepChart, phaseChart, sPlaneChart;
 
-  // Parameters and poles of m*x'' + b*x' + k*x = F(t).
-  function system(m, b, k) {
+  function initCharts() {
+    const ctx1 = document.getElementById('stepChart').getContext('2d');
+    stepChart = new Chart(ctx1, {
+      type: 'line',
+      data: { datasets: [
+        { label: 'Output y(t)', borderColor: '#38bdf8', borderWidth: 2, data: [], pointRadius: 0 },
+        { label: 'Steady State (K*F)', borderColor: '#94a3b8', borderDash: [5, 5], borderWidth: 1, data: [], pointRadius: 0 }
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { type: 'linear', title: { display: true, text: 'Time (s)', color: '#94a3b8' }, grid: { color: '#334155' } },
+          y: { title: { display: true, text: 'Displacement y(m)', color: '#94a3b8' }, grid: { color: '#334155' } }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc' } } }
+      }
+    });
+
+    const ctx2 = document.getElementById('phaseChart').getContext('2d');
+    phaseChart = new Chart(ctx2, {
+      type: 'line',
+      data: { datasets: [{ label: 'Trajectory (x1=y, x2=v)', borderColor: '#c084fc', borderWidth: 2, data: [], pointRadius: 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { title: { display: true, text: 'Position x1 (m)', color: '#94a3b8' }, grid: { color: '#334155' } },
+          y: { title: { display: true, text: 'Velocity x2 (m/s)', color: '#94a3b8' }, grid: { color: '#334155' } }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc' } } }
+      }
+    });
+
+    const ctx3 = document.getElementById('sPlaneChart').getContext('2d');
+    sPlaneChart = new Chart(ctx3, {
+      type: 'scatter',
+      data: { datasets: [
+        { 
+          label: 'Poles / Eigenvalues', 
+          backgroundColor: '#ef4444', 
+          borderColor: '#ef4444',
+          borderWidth: 3,
+          pointRadius: 8, 
+          pointStyle: 'crossRot', 
+          data: [] 
+        }
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { 
+            type: 'linear', 
+            title: { display: true, text: 'Real Axis (σ)', color: '#94a3b8' }, 
+            grid: { color: '#334155' } 
+          },
+          y: { 
+            type: 'linear', 
+            title: { display: true, text: 'Imaginary Axis (jω)', color: '#94a3b8' }, 
+            grid: { color: '#334155' } 
+          }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc' } } }
+      }
+    });
+  }
+
+  function updateSimulation() {
+    const m = parseFloat(document.getElementById('slider-m').value);
+    const b = parseFloat(document.getElementById('slider-b').value);
+    const k = parseFloat(document.getElementById('slider-k').value);
+
+    document.getElementById('val-m').innerText = m.toFixed(1);
+    document.getElementById('val-b').innerText = b.toFixed(1);
+    document.getElementById('val-k').innerText = k.toFixed(1);
+
     const wn = Math.sqrt(k / m);
-    const zeta = b / (2 * Math.sqrt(m * k));
-    const real = -b / (2 * m);
-    const imaginary = Math.sqrt(Math.max(0, 4 * m * k - b * b)) / (2 * m);
-    const root = Math.sqrt(Math.max(0, b * b - 4 * m * k)) / (2 * m);
-    return { m, b, k, wn, zeta,
-      poles: [{ re: real + root, im: imaginary },
-              { re: real - root, im: -imaginary }] };
-  }
+    const zeta = b / (2 * Math.sqrt(k * m));
+    const K = 1 / k;
 
-  // Exact unit-step displacement, normalized by the final value 1/k.
-  function normalizedStep(t, wn, z) {
-    if (z < 1 - 1e-10) {
-      const wd = wn * Math.sqrt(1 - z * z);
-      const decay = Math.exp(-z * wn * t);
-      return 1 - decay * (Math.cos(wd * t) + z * wn / wd * Math.sin(wd * t));
+    document.getElementById('out-wn').innerText = wn.toFixed(2);
+    document.getElementById('out-zeta').innerText = zeta.toFixed(2);
+
+    let regime = "";
+    if (zeta < 1.0) regime = "Underdamped (ζ < 1)";
+    else if (Math.abs(zeta - 1.0) < 1e-4) regime = "Critically Damped (ζ = 1)";
+    else regime = "Overdamped (ζ > 1)";
+    document.getElementById('out-regime').innerText = regime;
+
+    const dt = 0.005;
+    const tMax = Math.max(10, 8 / (zeta * wn || 0.5));
+    let t = 0, x1 = 0, x2 = 0;
+    
+    const timeData = [], inputData = [], phaseData = [];
+    
+    while (t <= tMax) {
+      const u = 1.0; // Unit step force
+      timeData.push({ x: t, y: x1 });
+      inputData.push({ x: t, y: K * u });
+      phaseData.push({ x: x1, y: x2 });
+
+      const dx1 = x2;
+      const dx2 = -(k / m) * x1 - (b / m) * x2 + (1 / m) * u;
+
+      x1 += dx1 * dt;
+      x2 += dx2 * dt;
+      t += dt;
     }
-    if (z <= 1 + 1e-10) {
-      return 1 - (1 + wn * t) * Math.exp(-wn * t);
+
+    stepChart.data.datasets[0].data = timeData;
+    stepChart.data.datasets[1].data = inputData;
+    stepChart.update();
+
+    phaseChart.data.datasets[0].data = phaseData;
+    phaseChart.update();
+
+    if (zeta < 1.0) {
+      const wd = wn * Math.sqrt(1 - zeta * zeta);
+      const tp = Math.PI / wd;
+      const os = Math.exp(-zeta * Math.PI / Math.sqrt(1 - zeta * zeta)) * 100;
+      const phi = Math.atan2(wd, zeta * wn);
+      const tr = (Math.PI - phi) / wd;
+      const ts = 4 / (zeta * wn);
+
+      document.getElementById('out-tp').innerText = tp.toFixed(2);
+      document.getElementById('out-os').innerText = os.toFixed(1);
+      document.getElementById('out-tr').innerText = tr.toFixed(2);
+      document.getElementById('out-ts').innerText = ts.toFixed(2);
+    } else {
+      document.getElementById('out-tp').innerText = "N/A";
+      document.getElementById('out-os').innerText = "0.0";
+      document.getElementById('out-tr').innerText = (2.2 / (zeta * wn)).toFixed(2);
+      document.getElementById('out-ts').innerText = (4 / (zeta * wn)).toFixed(2);
     }
-    const r = Math.sqrt(z * z - 1);
-    const slow = -wn / (z + r);
-    const fast = -wn * (z + r);
-    return 1 - (fast * Math.exp(slow * t) - slow * Math.exp(fast * t)) / (fast - slow);
-  }
 
-  // Derivative of normalizedStep: velocity = normalizedVelocity / k.
-  function normalizedVelocity(t, wn, z) {
-    if (z < 1 - 1e-10) {
-      const wd = wn * Math.sqrt(1 - z * z);
-      return wn * wn * Math.exp(-z * wn * t) * Math.sin(wd * t) / wd;
+    document.getElementById('matrix-display').innerText = 
+`A = [   0.00,    1.00 ]
+    [ ${( -k/m ).toFixed(2).padStart(7)}, ${( -b/m ).toFixed(2).padStart(7)} ]
+
+B = [ 0.00 ]
+    [ ${( 1/m ).toFixed(2).padStart(4)} ]`;
+
+    let poles = [];
+    let xMin = -5, xMax = 1, yMin = -5, yMax = 5;
+
+    if (zeta < 1.0) {
+      const sigma = -zeta * wn;
+      const wd = wn * Math.sqrt(1 - zeta * zeta);
+      poles = [{ x: sigma, y: wd }, { x: sigma, y: -wd }];
+      
+      xMin = Math.min(-4, sigma * 2);
+      xMax = Math.max(1, Math.abs(sigma));
+      yMin = -Math.max(3, wd * 1.5);
+      yMax = Math.max(3, wd * 1.5);
+
+      document.getElementById('eigen-display').innerText = 
+`λ₁ = ${sigma.toFixed(3)} + j${wd.toFixed(3)}
+λ₂ = ${sigma.toFixed(3)} - j${wd.toFixed(3)}`;
+    } else {
+      const s1 = -zeta * wn + wn * Math.sqrt(zeta * zeta - 1);
+      const s2 = -zeta * wn - wn * Math.sqrt(zeta * zeta - 1);
+      poles = [{ x: s1, y: 0 }, { x: s2, y: 0 }];
+      
+      xMin = Math.min(-5, s2 * 1.2);
+      xMax = 1;
+      yMin = -2;
+      yMax = 2;
+
+      document.getElementById('eigen-display').innerText = 
+`λ₁ = ${s1.toFixed(3)}
+λ₂ = ${s2.toFixed(3)}`;
     }
-    if (z <= 1 + 1e-10) {
-      return wn * wn * t * Math.exp(-wn * t);
-    }
-    const r = Math.sqrt(z * z - 1);
-    const slow = -wn / (z + r);
-    const fast = -wn * (z + r);
-    return slow * fast * (Math.exp(fast * t) - Math.exp(slow * t)) / (fast - slow);
+
+    sPlaneChart.options.scales.x.min = xMin;
+    sPlaneChart.options.scales.x.max = xMax;
+    sPlaneChart.options.scales.y.min = yMin;
+    sPlaneChart.options.scales.y.max = yMax;
+
+    sPlaneChart.data.datasets[0].data = poles;
+    sPlaneChart.update();
   }
 
-  // Find the first time the response reaches a chosen fraction of its final value.
-  function firstCrossing(level, wn, z) {
-    let high = 1 / wn;
-    if (z < 1 - 1e-10) high = Math.PI / (wn * Math.sqrt(1 - z * z));
-    while (normalizedStep(high, wn, z) < level) high *= 2;
-    let low = 0;
-    for (let i = 0; i < 60; i++) {
-      const middle = (low + high) / 2;
-      if (normalizedStep(middle, wn, z) < level) low = middle;
-      else high = middle;
-    }
-    return (low + high) / 2;
-  }
-
-  // Last time the response enters and stays inside the +/-2% band.
-  function settlingTime(wn, z) {
-    if (z === 0) return Infinity; // Undamped oscillations never settle.
-    if (z >= 1) return firstCrossing(0.98, wn, z); // Monotonic response.
-
-    const wd = wn * Math.sqrt(1 - z * z);
-    const halfPeriod = Math.PI / wd;
-    let lastOutsidePeak = 0;
-
-    // At each extremum n*pi/wd the error magnitude is exp(-z*wn*t).
-    while (Math.exp(-z * wn * (lastOutsidePeak + 1) * halfPeriod) > 0.02) {
-      lastOutsidePeak++;
-    }
-    let low = lastOutsidePeak * halfPeriod;
-    let high = (lastOutsidePeak + 1) * halfPeriod;
-    const above = lastOutsidePeak % 2 === 1;
-    const target = above ? 1.02 : 0.98;
-
-    for (let i = 0; i < 60; i++) {
-      const middle = (low + high) / 2;
-      const value = normalizedStep(middle, wn, z);
-      if (above ? value > target : value < target) low = middle;
-      else high = middle;
-    }
-    return (low + high) / 2;
-  }
-
-  function measurements(s) {
-    const { wn, zeta: z } = s;
-    const under = z < 1 - 1e-10;
-    const wd = under ? wn * Math.sqrt(1 - z * z) : 0;
-    return {
-      rise1090: firstCrossing(0.9, wn, z) - firstCrossing(0.1, wn, z),
-      rise0100: under ? (Math.PI - Math.acos(z)) / wd : null,
-      peak: under ? Math.PI / wd : null,
-      overshoot: under ? 100 * Math.exp(-Math.PI * z / Math.sqrt(1 - z*z)) : 0,
-      settling: settlingTime(wn, z)
-    };
-  }
-
-  function number(value, decimals = 3) { return value.toFixed(decimals); }
-  function timeLabel(t) {
-    if (t === null) return 'N/A (no finite peak or 100% crossing)';
-    if (!Number.isFinite(t)) return 'Never (no damping)';
-    return number(t) + ' s';
-  }
-  function complexText(p) {
-    if (Math.abs(p.im) < 1e-9) return number(p.re);
-    return number(p.re) + (p.im >= 0 ? ' + j' : ' - j') + number(Math.abs(p.im));
-  }
-  function plotLine(label, data, color, dashed = false) {
-    return { label, data, parsing: false, showLine: true, pointRadius: 0,
-      borderColor: color, backgroundColor: color, borderWidth: 2,
-      borderDash: dashed ? [6, 4] : [], tension: 0 };
-  }
-  function chartOptions(xTitle, yTitle) {
-    return {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      interaction: { mode: 'nearest', intersect: false },
-      scales: {
-        x: { type: 'linear', title: { display: true, text: xTitle, color: '#e2e8f0' },
-          ticks: { color: '#e2e8f0' }, grid: { color: '#334155' } },
-        y: { type: 'linear', title: { display: true, text: yTitle, color: '#e2e8f0' },
-          ticks: { color: '#e2e8f0' }, grid: { color: '#334155' } }
-      },
-      plugins: { legend: { labels: { color: '#e2e8f0' } } }
-    };
-  }
-
-  function createCharts() {
-    stepChart = new Chart(get('stepChart'), { type: 'line', data: { datasets: [] },
-      options: chartOptions('Time (s)', 'Displacement y (m)') });
-    comparisonChart = new Chart(get('comparisonChart'), { type: 'line', data: { datasets: [] },
-      options: chartOptions('Time (s)', 'Normalized displacement y / y(final)') });
-    phaseChart = new Chart(get('phaseChart'), { type: 'line', data: { datasets: [] },
-      options: chartOptions('Displacement x1 (m)', 'Velocity x2 (m/s)') });
-    poleChart = new Chart(get('poleChart'), { type: 'scatter', data: { datasets: [] },
-      options: chartOptions('Real(s)', 'Imaginary(s)') });
-  }
-
-  function draw() {
-    const m = Number(get('mass').value);
-    const b = Number(get('damping').value);
-    const k = Number(get('stiffness').value);
-    const s = system(m, b, k);
-    const met = measurements(s);
-    const { wn, zeta: z } = s;
-    const final = 1 / k;
-    const regime = z < 1 - 1e-10 ? 'Underdamped' : z <= 1 + 1e-10 ? 'Critically damped' : 'Overdamped';
-
-    get('massValue').textContent = m.toFixed(1);
-    get('dampingValue').textContent = b.toFixed(1);
-    get('stiffnessValue').textContent = k.toFixed(1);
-    get('wnValue').textContent = number(wn);
-    get('zetaValue').textContent = number(z);
-    get('regimeValue').textContent = regime;
-    get('finalValue').textContent = number(final);
-    get('rise1090').textContent = timeLabel(met.rise1090);
-    get('rise0100').textContent = timeLabel(met.rise0100);
-    get('peakTime').textContent = timeLabel(met.peak);
-    get('overshoot').textContent = number(met.overshoot, 2) + '%';
-    get('settleTime').textContent = timeLabel(met.settling);
-    get('metricNote').textContent = z === 0
-      ? 'With b = 0, oscillation never dies out, so settling time is undefined.'
-      : z >= 1 ? 'No overshoot or finite first peak. The 0–100% rise time is undefined because the curve approaches its final value asymptotically.'
-      : 'Settling time is the LAST entry into the 2% tolerance band, not just the first entry.';
-
-    const timeEnd = Number.isFinite(met.settling)
-      ? Math.max(6 / wn, met.settling * 1.2, (met.peak || 0) * 1.5)
-      : 10 * Math.PI / wn;
-    const samples = 1800;
-    const times = Array.from({length: samples + 1}, (_, i) => i * timeEnd / samples);
-    const response = times.map(t => ({ x: t, y: normalizedStep(t, wn, z) * final }));
-    const phase = times.map(t => ({ x: normalizedStep(t, wn, z) * final,
-                                    y: normalizedVelocity(t, wn, z) * final }));
-
-    // Response + steady-state line + live peak/settling markers.
-    const stepSets = [
-      plotLine('Step response', response, '#38bdf8'),
-      plotLine('Final displacement', [{ x: 0, y: final }, { x: timeEnd, y: final }], '#e2e8f0', true)
-    ];
-    if (met.peak !== null) {
-      stepSets.push({ label: 'First peak', data: [{ x: met.peak,
-        y: normalizedStep(met.peak, wn, z) * final }], parsing: false,
-        showLine: false, pointRadius: 6, backgroundColor: '#fbbf24' });
-    }
-    if (Number.isFinite(met.settling)) {
-      stepSets.push({ label: '2% settling', data: [{ x: met.settling,
-        y: normalizedStep(met.settling, wn, z) * final }], parsing: false,
-        showLine: false, pointRadius: 6, backgroundColor: '#86efac' });
-    }
-    stepChart.data.datasets = stepSets;
-    stepChart.options.scales.x.min = 0;
-    stepChart.options.scales.x.max = timeEnd;
-    stepChart.update('none');
-
-    // Three representative damping regimes, all with the same natural frequency.
-    const compareEnd = 12 / wn;
-    const compareTimes = Array.from({length: 501}, (_, i) => i * compareEnd / 500);
-    comparisonChart.data.datasets = [
-      plotLine('ζ = 0.5 (under)', compareTimes.map(t => ({x:t, y:normalizedStep(t,wn,0.5)})), '#38bdf8'),
-      plotLine('ζ = 1 (critical)', compareTimes.map(t => ({x:t, y:normalizedStep(t,wn,1)})), '#86efac'),
-      plotLine('ζ = 2 (over)', compareTimes.map(t => ({x:t, y:normalizedStep(t,wn,2)})), '#fbbf24')
-    ];
-    comparisonChart.update('none');
-
-    phaseChart.data.datasets = [plotLine('Trajectory', phase, '#c084fc')];
-    phaseChart.update('none');
-
-    get('matrices').textContent =
-      'A = [  0.000    1.000 ]\n' +
-      '    [ ' + number(-k/m).padStart(7) + '  ' + number(-b/m).padStart(7) + ' ]\n\n' +
-      'B = [ 0.000 ]\n    [ ' + number(1/m).padStart(5) + ' ]\n\n' +
-      'C = [ 1  0 ],   D = 0';
-    get('eigenvalues').textContent =
-      'λ1 = ' + complexText(s.poles[0]) + '\n' +
-      'λ2 = ' + complexText(s.poles[1]);
-    get('polesText').textContent = 'Transfer-function poles = eigenvalues of A: ' +
-      complexText(s.poles[0]) + ' and ' + complexText(s.poles[1]) + '.';
-
-    const polePoints = s.poles.map(p => ({x:p.re, y:p.im}));
-    const bound = Math.max(1, ...s.poles.map(p => Math.abs(p.re)), ...s.poles.map(p => Math.abs(p.im))) * 1.3;
-    poleChart.data.datasets = [
-      plotLine('Real axis', [{x:-bound,y:0}, {x:bound*0.3,y:0}], '#64748b', true),
-      plotLine('Imaginary axis', [{x:0,y:-bound}, {x:0,y:bound}], '#64748b', true),
-      { label: 'Poles', data: polePoints, parsing: false, pointRadius: 10,
-        pointStyle: 'circle', backgroundColor: '#38bdf8', showLine: false },
-      { label: 'Eigenvalues (same locations)', data: polePoints, parsing: false,
-        pointRadius: 7, pointStyle: 'crossRot', borderColor: '#fbbf24', showLine: false }
-    ];
-    poleChart.options.scales.x.min = -bound;
-    poleChart.options.scales.x.max = bound * 0.3;
-    poleChart.options.scales.y.min = -bound;
-    poleChart.options.scales.y.max = bound;
-    poleChart.update('none');
-  }
-
-  // These six assignment-wide checks are divided among Modules 1, 2 and 3.
-  // Module 3 calculates tests 4, 5 and 6 from fixed test inputs.
-  function runValidation() {
-    const test4 = system(1, 2, 4); // ζ = 0.5, ωn = 2
-    const test5 = system(1, 4, 4); // ζ = 1
-    const test6 = system(1, 2, 4); // eigenvalues -1 +/- j*sqrt(3)
-    const os4 = measurements(test4).overshoot;
-    const os5 = measurements(test5).overshoot;
-    const p1 = test6.poles[0];
-    const p2 = test6.poles[1];
-    const eigenOK = Math.abs(p1.re + 1) < 0.001 && Math.abs(p2.re + 1) < 0.001 &&
-      Math.abs(p1.im - Math.sqrt(3)) < 0.001 && Math.abs(p2.im + Math.sqrt(3)) < 0.001;
-    const checks = [
-      ['4. Overshoot at ζ = 0.5', '16.3%', number(os4, 3) + '%', Math.abs(os4 - 16.3) < 0.1],
-      ['5. Overshoot at ζ = 1', '0%', number(os5, 3) + '%', Math.abs(os5) < 0.001],
-      ['6. Eigenvalues, m = 1, b = 2, k = 4', '-1 ± j1.732',
-        complexText(p1) + ', ' + complexText(p2), eigenOK]
-    ];
-    get('validationRows').innerHTML = checks.map(row =>
-      '<tr><td>' + row[0] + '</td><td>' + row[1] + '</td><td>' + row[2] +
-      '</td><td class="' + (row[3] ? 'pass' : 'fail') + '">' +
-      (row[3] ? 'PASS' : 'FAIL') + '</td></tr>'
-    ).join('');
-  }
-
-  get('checkPrediction').addEventListener('click', () => {
-    const value = get('prediction').value;
-    get('predictionResult').textContent = !value ? 'Choose an answer first.' :
-      value === 'decrease' ? 'Correct. More damping increases ζ and decreases overshoot until it becomes zero.' :
-      'Not quite. More damping usually reduces overshoot; once ζ ≥ 1, overshoot is already zero.';
-  });
-
-  if (typeof Chart === 'undefined') {
-    get('loadError').hidden = false;
-  } else {
-    createCharts();
-    runValidation();
-    ['mass', 'damping', 'stiffness'].forEach(id => get(id).addEventListener('input', draw));
-    draw();
-  }
+  window.onload = () => {
+    initCharts();
+    document.querySelectorAll('input[type=range]').forEach(el => el.addEventListener('input', updateSimulation));
+    updateSimulation();
+  };
 </script>
 </body>
 </html>

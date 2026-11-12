@@ -50,7 +50,8 @@ Nothing to install. Open the live link above, or open `index.html` in any browse
 ## Screenshots
 
 ### Module 2: First-order frequency response
-<img width="300" height="438" alt="image" src="https://github.com/user-attachments/assets/60d297bf-c2c0-4bb2-bb15-20db3cb49bf4" />
+<img width="767" height="438" alt="image" src="https://github.com/user-attachments/assets/1f0a29e8-409d-4ce8-a851-e58d00e73db8" />
+
 
 
 ## Tools used

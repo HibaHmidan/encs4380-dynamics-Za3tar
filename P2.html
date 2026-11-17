@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P2: A Slow Sensor in the Loop</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc;
+            --muted: #cbd5e1; --border: #475569; }
+    * { box-sizing: border-box; }
+    body { margin: 0 auto; padding: 18px; max-width: 1080px; background: var(--bg);
+           color: var(--text); font: 16px/1.6 system-ui, -apple-system, Arial, sans-serif; }
+    nav { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 24px; }
+    a { color: #7dd3fc; }
+    h1, h2 { color: var(--accent); line-height: 1.3; }
+    .box { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+           padding: 20px; margin: 18px 0; min-width: 0; }
+    .box h2 { margin-top: 0; }
+    .predict { border-color: #6366f1; background: #1e1b4b; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 4px 24px; }
+    .control { margin: 12px 0; }
+    .control label { display: block; margin-bottom: 4px; }
+    input[type="range"] { display: block; width: 100%; accent-color: var(--accent); }
+    button, select { font: inherit; padding: 9px 12px; border-radius: 7px; }
+    button { background: #075985; color: #fff; border: 1px solid var(--accent); cursor: pointer; margin: 4px 6px 4px 0; }
+    button:hover { background: #0369a1; }
+    select { background: var(--bg); color: var(--text); border: 1px solid #94a3b8; max-width: 100%; }
+    button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+    .chart { position: relative; height: 340px; }
+    .chart.small { height: 260px; }
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #64748b; padding: 9px; text-align: left; }
+    th { color: #7dd3fc; background: var(--bg); }
+    .note { color: var(--muted); }
+    .warn { color: #fda4af; }
+    .diagram { width: 100%; max-width: 760px; height: auto; display: block; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) {
+      body { padding: 10px; } h1 { font-size: 25px; } .box { padding: 14px; }
+      .chart { height: 300px; } th, td { padding: 7px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <nav aria-label="Modules">
+    <a href="index.html">Homework 1</a>
+    <span aria-hidden="true" style="opacity:.65">| Control:</span>
+    <a href="p1.html">P1 PID playground</a>
+    <strong aria-current="page">P2 Slow sensor</strong>
+  </nav>
+
+  <h1>P2: A slow sensor in the loop</h1>
+  <p>The controller never sees the true output y. It only sees ym, what the sensor reports.
+     The sensor is the first-order system from Module 1: τs·dym/dt + ym = y. The error is e = r − ym.</p>
+  <p class="note">Plant: K/(τs + 1) with K = 1, τ = 1 s. Setpoint r = 1. Control signal limited to −10 ≤ u ≤ 10.
+     Simulated with our own solver: RK4, step h = 1 ms.</p>
+
+  <section class="box">
+    <h2>The loop</h2>
+    <svg class="diagram" viewBox="0 0 760 200" role="img"
+         aria-label="Block diagram: setpoint r minus sensor reading ym gives error e, PID gives u, limited, drives the plant; the plant output y goes through the sensor to give ym">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1"/>
+        </marker>
+      </defs>
+      <g stroke="#cbd5e1" stroke-width="2" fill="none">
+        <line x1="35" y1="70" x2="73" y2="70" marker-end="url(#arrow)"/>
+        <circle cx="90" cy="70" r="15"/>
+        <line x1="105" y1="70" x2="148" y2="70" marker-end="url(#arrow)"/>
+        <line x1="260" y1="70" x2="298" y2="70" marker-end="url(#arrow)"/>
+        <line x1="390" y1="70" x2="428" y2="70" marker-end="url(#arrow)"/>
+        <line x1="560" y1="70" x2="745" y2="70" marker-end="url(#arrow)"/>
+        <polyline points="640,70 640,160 562,160" marker-end="url(#arrow)"/>
+        <polyline points="430,160 90,160 90,87" marker-end="url(#arrow)"/>
+      </g>
+      <circle cx="640" cy="70" r="4" fill="#cbd5e1"/>
+      <g fill="#0f172a" stroke="#38bdf8" stroke-width="2">
+        <rect x="150" y="45" width="110" height="50" rx="6"/>
+        <rect x="300" y="45" width="90" height="50" rx="6"/>
+        <rect x="430" y="45" width="130" height="50" rx="6"/>
+        <rect x="430" y="135" width="130" height="50" rx="6"/>
+      </g>
+      <g fill="#f8fafc" font-family="system-ui, Arial, sans-serif" font-size="17" text-anchor="middle">
+        <text x="18" y="76">r</text>
+        <text x="205" y="76">PID</text>
+        <text x="345" y="76">Limit</text>
+        <text x="495" y="76">Plant</text>
+        <text x="495" y="166">Sensor τs</text>
+        <text x="126" y="62">e</text>
+        <text x="280" y="62">u</text>
+        <text x="700" y="62">y</text>
+        <text x="300" y="152">ym</text>
+        <text x="70" y="60" font-size="15">+</text>
+        <text x="104" y="104" font-size="18">−</text>
+      </g>
+    </svg>
+  </section>
+
+  <section class="box predict">
+    <h2>Predict, then check</h2>
+    <p>Keep the gains fixed. As the sensor time constant τs grows from 0 to 1 s, what happens to the
+       overshoot of the true output y?</p>
+    <select id="guess" aria-label="Your prediction">
+      <option value="">Choose…</option>
+      <option value="grows">It grows, and the loop starts to oscillate</option>
+      <option value="shrinks">It shrinks, because the sensor smooths the signal</option>
+      <option value="same">It stays the same, because the plant did not change</option>
+    </select>
+    <button id="checkGuess" type="button">Check</button>
+    <p id="feedback" aria-live="polite"></p>
+    <p class="note">Tip from the homework: if the loop oscillates, look at τs before blaming the gains.</p>
+  </section>
+
+  <section class="box">
+    <h2>Sensor and gains</h2>
+    <div class="grid">
+      <div>
+        <div class="control">
+          <label for="tauS">Sensor time constant τs = <span id="tauSValue"></span> s</label>
+          <input id="tauS" type="range" min="0" max="2" step="0.02" value="0">
+        </div>
+        <p id="edge"></p>
+      </div>
+      <div>
+        <div class="control">
+          <label for="Kp">Kp = <span id="KpValue"></span></label>
+          <input id="Kp" type="range" min="0" max="10" step="0.1" value="2">
+        </div>
+        <div class="control">
+          <label for="Ki">Ki = <span id="KiValue"></span> 1/s</label>
+          <input id="Ki" type="range" min="0" max="10" step="0.1" value="5">
+        </div>
+        <div class="control">
+          <label for="Kd">Kd = <span id="KdValue"></span> s</label>
+          <input id="Kd" type="range" min="0" max="2" step="0.01" value="0">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="box">
+    <h2>True output and what the sensor reports</h2>
+    <div class="chart"><canvas id="outChart" role="img" aria-label="True output y, sensor reading ym and setpoint versus time"></canvas></div>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th></th><th>Overshoot</th><th>Settling time (±2%)</th><th>Final value</th></tr></thead>
+        <tbody id="metricRows"></tbody>
+      </table>
+    </div>
+    <p id="status"></p>
+  </section>
+
+  <section class="box">
+    <h2>Overshoot of y as τs grows</h2>
+    <p class="note">Each point is a full simulation with the current gains. A gap means the loop is
+       still oscillating after 20 s, so no overshoot can be read.</p>
+    <div class="chart small"><canvas id="sweepChart" role="img" aria-label="Overshoot of the true output versus sensor time constant"></canvas></div>
+  </section>
+
+  <p id="loadError" class="warn" role="alert" hidden>The chart library could not load. Check your internet connection and reload.</p>
+
+  <script>
+  (() => {
+    'use strict';
+    const get = id => document.getElementById(id);
+    const num = id => Number(get(id).value);
+    const K = 1, TAU = 1, R = 1, LIMIT = 10, T_END = 20;
+
+    // ---------------- Our solver ----------------
+    // Slopes [dy/dt, dym/dt] for a held control signal u.
+    // Plant:  τ·y' + y = K·u        Sensor: τs·ym' + ym = y
+    function slopes(y, ym, u, tauS) {
+      return [(K * u - y) / TAU, tauS > 0 ? (y - ym) / tauS : 0];
+    }
+
+    // One RK4 step of length h, with u held constant during the step.
+    function rk4(y, ym, u, tauS, h) {
+      const [a1, b1] = slopes(y, ym, u, tauS);
+      const [a2, b2] = slopes(y + h / 2 * a1, ym + h / 2 * b1, u, tauS);
+      const [a3, b3] = slopes(y + h / 2 * a2, ym + h / 2 * b2, u, tauS);
+      const [a4, b4] = slopes(y + h * a3, ym + h * b3, u, tauS);
+      return [y + h / 6 * (a1 + 2 * a2 + 2 * a3 + a4),
+              ym + h / 6 * (b1 + 2 * b2 + 2 * b3 + b4)];
+    }
+
+    function simulate(g, tauS, h = 0.001) {
+      const N = Math.round(T_END / h);
+      let y = 0, ym = 0, integral = 0, ePrev = null, u = 0;
+      const t = [], ys = [], yms = [];
+      for (let i = 0; i <= N; i++) {
+        if (tauS === 0) ym = y;                          // perfect sensor
+        const e = R - ym;                                // the controller only sees ym
+        if (ePrev === null) ePrev = e;                   // first step: no derivative kick
+        integral += e * h;
+        u = g.Kp * e + g.Ki * integral + g.Kd * (e - ePrev) / h;
+        u = Math.min(LIMIT, Math.max(-LIMIT, u));        // actuator limit
+        ePrev = e;
+        t.push(i * h); ys.push(y); yms.push(ym);
+        [y, ym] = rk4(y, ym, u, tauS, h);
+      }
+      return { t, y: ys, ym: yms };
+    }
+
+    // Overshoot, settling time and final value read off a simulated curve.
+    function metrics(t, y) {
+      const N = y.length;
+      const tail = y.slice(Math.floor(N * 0.95));
+      const yf = tail.reduce((a, b) => a + b, 0) / tail.length;
+      const band = 0.02 * Math.abs(yf);
+      const settled = Math.abs(yf) > 1e-9 && Number.isFinite(yf) &&
+        y.slice(Math.floor(N * 0.9)).every(v => Math.abs(v - yf) <= band);
+      if (!settled) return { yf, settled, overshoot: null, settle: null };
+      let lastOut = -1;
+      for (let i = 0; i < N; i++) if (Math.abs(y[i] - yf) > band) lastOut = i;
+      return { yf, settled,
+               overshoot: Math.max(0, 100 * (Math.max(...y) - yf) / Math.abs(yf)),
+               settle: lastOut < 0 ? 0 : t[Math.min(lastOut + 1, N - 1)] };
+    }
+    // ---------------- end of solver ----------------
+
+    function thin(t, y) {
+      const k = Math.max(1, Math.ceil(t.length / 1500)), pts = [];
+      for (let i = 0; i < t.length; i += k) pts.push({ x: t[i], y: y[i] });
+      return pts;
+    }
+    const fmt = (v, d, unit = '') => (v === null || !Number.isFinite(v)) ? '—' : v.toFixed(d) + unit;
+    const line = (label, data, color, extra = {}) => ({ label, data, borderColor: color,
+      backgroundColor: color, borderWidth: 2, pointRadius: 0, tension: 0, ...extra });
+    function chartOptions(xTitle, yTitle, yExtra) {
+      return {
+        responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+        interaction: { intersect: false, mode: 'nearest', axis: 'x' },
+        scales: {
+          x: { type: 'linear', min: 0, title: { display: true, text: xTitle, color: '#cbd5e1' },
+               ticks: { color: '#cbd5e1', maxTicksLimit: 8 }, grid: { color: '#334155' } },
+          y: { title: { display: true, text: yTitle, color: '#cbd5e1' },
+               ticks: { color: '#cbd5e1' }, grid: { color: '#334155' }, ...yExtra }
+        },
+        plugins: { legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 18 } } }
+      };
+    }
+
+    get('checkGuess').addEventListener('click', () => {
+      const a = get('guess').value;
+      get('feedback').textContent = !a ? 'Choose an answer first.' :
+        (a === 'grows' ? 'Correct! ' : 'Not quite. ') +
+        'The sensor reports old information, so the controller keeps pushing after y has already ' +
+        'reached the target. Overshoot grows until the loop oscillates. The controller only controls what the sensor says.';
+    });
+
+    if (typeof Chart === 'undefined') { get('loadError').hidden = false; return; }
+    const outChart = new Chart(get('outChart'), { type: 'line', data: { datasets: [] },
+      options: chartOptions('Time (s)', 'Output', { min: -0.5, max: 2.5 }) });
+    const sweepChart = new Chart(get('sweepChart'), { type: 'line', data: { datasets: [] },
+      options: chartOptions('Sensor time constant τs (s)', 'Overshoot of y (%)', { min: 0 }) });
+
+    // The sweep only needs recomputing when the gains change.
+    let sweepKey = '', sweep = [];
+    function updateSweep(g) {
+      const key = JSON.stringify(g);
+      if (key === sweepKey) return;
+      sweepKey = key;
+      sweep = [];
+      for (let i = 0; i <= 20; i++) {
+        const ts = i * 0.1;
+        const s = simulate(g, ts, 0.002);
+        const m = metrics(s.t, s.y);
+        sweep.push({ x: ts, y: m.settled ? m.overshoot : null });
+      }
+    }
+
+    function draw() {
+      const g = { Kp: num('Kp'), Ki: num('Ki'), Kd: num('Kd') };
+      const tauS = num('tauS');
+      get('tauSValue').textContent = tauS.toFixed(2);
+      get('KpValue').textContent = g.Kp.toFixed(1);
+      get('KiValue').textContent = g.Ki.toFixed(1);
+      get('KdValue').textContent = g.Kd.toFixed(2);
+
+      // Theory (without the limit). Characteristic equation:
+      //   τ·τs·s³ + (τ + τs + K·Kd)·s² + (1 + K·Kp)·s + K·Ki = 0
+      // Routh: stable while (τ + τs + K·Kd)(1 + K·Kp) > τ·τs·K·Ki.
+      const den = TAU * K * g.Ki - (1 + K * g.Kp);
+      get('edge').textContent = den > 0
+        ? 'Theory (ignoring the limit): with these gains the loop oscillates forever at τs = ' +
+          ((TAU + K * g.Kd) * (1 + K * g.Kp) / den).toFixed(3) + ' s, and grows beyond it.'
+        : 'Theory (ignoring the limit): with these gains the loop never becomes unstable, ' +
+          'but its damping still gets weaker as τs grows.';
+
+      const s = simulate(g, tauS);
+      const my = metrics(s.t, s.y), mm = metrics(s.t, s.ym);
+
+      outChart.data.datasets = [
+        line('True output y', thin(s.t, s.y), '#38bdf8'),
+        line('Sensor reading ym', thin(s.t, s.ym), '#fb923c', { borderDash: [7, 4] }),
+        line('Setpoint r', [{ x: 0, y: R }, { x: T_END, y: R }], '#94a3b8', { borderDash: [3, 4] })
+      ];
+      outChart.options.scales.x.max = T_END;
+      outChart.update();
+
+      const row = (name, m) => `<tr><td>${name}</td><td>${fmt(m.overshoot, 1, '%')}</td>
+        <td>${fmt(m.settle, 2, ' s')}</td><td>${fmt(m.yf, 3)}</td></tr>`;
+      get('metricRows').innerHTML = row('True output y', my) + row('Sensor reading ym', mm);
+      const gap = Math.max(...s.y.map((v, i) => v - s.ym[i]));
+      get('status').textContent = (my.settled ? 'The loop settles. ' : 'The loop is still oscillating at t = 20 s. ') +
+        'Largest amount by which the true y is above what the sensor reports: ' + gap.toFixed(3) + '.';
+
+      updateSweep(g);
+      sweepChart.data.datasets = [
+        line('Overshoot of y', sweep, '#38bdf8', { pointRadius: 3, spanGaps: false }),
+        line('Current τs', [{ x: tauS, y: my.settled ? my.overshoot : null }], '#facc15',
+             { pointRadius: 7, showLine: false })
+      ];
+      sweepChart.options.scales.x.max = 2;
+      sweepChart.update();
+    }
+
+    ['tauS', 'Kp', 'Ki', 'Kd'].forEach(id => get(id).addEventListener('input', draw));
+    draw();
+  })();
+  </script>
+</body>
+</html>

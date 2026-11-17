@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P1: PID Playground</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc;
+            --muted: #cbd5e1; --border: #475569; }
+    * { box-sizing: border-box; }
+    body { margin: 0 auto; padding: 18px; max-width: 1080px; background: var(--bg);
+           color: var(--text); font: 16px/1.6 system-ui, -apple-system, Arial, sans-serif; }
+    nav { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 24px; }
+    a { color: #7dd3fc; }
+    h1, h2 { color: var(--accent); line-height: 1.3; }
+    .box { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+           padding: 20px; margin: 18px 0; min-width: 0; }
+    .box h2 { margin-top: 0; }
+    .predict { border-color: #6366f1; background: #1e1b4b; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 4px 24px; }
+    .control { margin: 12px 0; }
+    .control label { display: block; margin-bottom: 4px; }
+    input[type="range"] { display: block; width: 100%; accent-color: var(--accent); }
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); vertical-align: middle; }
+    button, select { font: inherit; padding: 9px 12px; border-radius: 7px; }
+    button { background: #075985; color: #fff; border: 1px solid var(--accent); cursor: pointer; margin: 4px 6px 4px 0; }
+    button:hover { background: #0369a1; }
+    select { background: var(--bg); color: var(--text); border: 1px solid #94a3b8; max-width: 100%; }
+    button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+    .chart { position: relative; height: 340px; }
+    .chart.small { height: 260px; }
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #64748b; padding: 9px; text-align: left; }
+    th { color: #7dd3fc; background: var(--bg); }
+    .pass { color: #86efac; font-weight: bold; }
+    .fail { color: #fda4af; font-weight: bold; }
+    .note { color: var(--muted); }
+    .diagram { width: 100%; max-width: 760px; height: auto; display: block; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) {
+      body { padding: 10px; } h1 { font-size: 25px; } .box { padding: 14px; }
+      .chart { height: 300px; } th, td { padding: 7px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <nav aria-label="Modules">
+    <a href="index.html">Homework 1</a>
+    <span aria-hidden="true" style="opacity:.65">| Control:</span>
+    <strong aria-current="page">P1 PID playground</strong>
+    <a href="p2.html">P2 Slow sensor</a>
+  </nav>
+
+  <h1>P1: PID playground</h1>
+  <p>A controller compares the output y with the setpoint r and sends a control signal u to the plant:
+     u = Kp·e + Ki·∫e dt + Kd·de/dt, with e = r − y. Change the gains and watch what each term does.</p>
+
+  <section class="box">
+    <h2>The loop</h2>
+    <svg class="diagram" viewBox="0 0 760 120" role="img"
+         aria-label="Block diagram: setpoint r minus output y gives error e, PID gives u, limited, drives the plant, output y fed back">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1"/>
+        </marker>
+      </defs>
+      <g stroke="#cbd5e1" stroke-width="2" fill="none">
+        <line x1="35" y1="50" x2="73" y2="50" marker-end="url(#arrow)"/>
+        <circle cx="90" cy="50" r="15"/>
+        <line x1="105" y1="50" x2="148" y2="50" marker-end="url(#arrow)"/>
+        <line x1="260" y1="50" x2="298" y2="50" marker-end="url(#arrow)"/>
+        <line x1="390" y1="50" x2="428" y2="50" marker-end="url(#arrow)"/>
+        <line x1="560" y1="50" x2="745" y2="50" marker-end="url(#arrow)"/>
+        <polyline points="640,50 640,105 90,105 90,67" marker-end="url(#arrow)"/>
+      </g>
+      <circle cx="640" cy="50" r="4" fill="#cbd5e1"/>
+      <g fill="#0f172a" stroke="#38bdf8" stroke-width="2">
+        <rect x="150" y="25" width="110" height="50" rx="6"/>
+        <rect x="300" y="25" width="90" height="50" rx="6"/>
+        <rect x="430" y="25" width="130" height="50" rx="6"/>
+      </g>
+      <g fill="#f8fafc" font-family="system-ui, Arial, sans-serif" font-size="17" text-anchor="middle">
+        <text x="18" y="56">r</text>
+        <text x="205" y="56">PID</text>
+        <text x="345" y="56">Limit</text>
+        <text x="495" y="56">Plant</text>
+        <text x="126" y="42">e</text>
+        <text x="280" y="42">u</text>
+        <text x="700" y="42">y</text>
+        <text x="70" y="40" font-size="15">+</text>
+        <text x="104" y="84" font-size="18">−</text>
+      </g>
+    </svg>
+    <p class="note">The loop is simulated with our own solver: RK4 for the plant, step h = 1 ms,
+       PID updated every step. No closed-form answer is used.</p>
+  </section>
+
+  <section class="box predict">
+    <h2>Predict, then check</h2>
+    <p>Start with P only, Kp = 1. If you raise Kp to 9, what happens to the steady-state error?</p>
+    <select id="guess" aria-label="Your prediction">
+      <option value="">Choose…</option>
+      <option value="smaller">It gets smaller, but does not reach zero</option>
+      <option value="zero">It becomes exactly zero</option>
+      <option value="larger">It gets larger</option>
+    </select>
+    <button id="checkGuess" type="button">Check</button>
+    <p id="feedback" aria-live="polite"></p>
+    <p class="note">Then follow the lecture order: P only, then add I, then add D.</p>
+    <button type="button" data-preset="p">P only: Kp = 9</button>
+    <button type="button" data-preset="pi">PI: Kp = 1, Ki = 1</button>
+    <button type="button" data-preset="pid">PID: Kp = 6, Ki = 8, Kd = 0.3</button>
+  </section>
+
+  <section class="box">
+    <h2>Plant and controller</h2>
+    <div class="grid">
+      <div>
+        <div class="control">
+          <label for="plantType">Plant</label>
+          <select id="plantType">
+            <option value="1">First order: K/(τs + 1) (Module 1)</option>
+            <option value="2">Second order: Kωn²/(s² + 2ζωns + ωn²) (Module 3)</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="K">Plant gain K = <span id="KValue"></span></label>
+          <input id="K" type="range" min="0.5" max="5" step="0.1" value="1">
+        </div>
+        <div class="control" id="tauRow">
+          <label for="tau">Time constant τ = <span id="tauValue"></span> s</label>
+          <input id="tau" type="range" min="0.2" max="5" step="0.1" value="1">
+        </div>
+        <div class="control" id="zetaRow" hidden>
+          <label for="zeta">Damping ratio ζ = <span id="zetaValue"></span></label>
+          <input id="zeta" type="range" min="0.1" max="2" step="0.05" value="0.5">
+        </div>
+        <div class="control" id="wnRow" hidden>
+          <label for="wn">Natural frequency ωn = <span id="wnValue"></span> rad/s</label>
+          <input id="wn" type="range" min="0.5" max="10" step="0.1" value="2">
+        </div>
+        <div class="control">
+          <label for="r">Setpoint step r = <span id="rValue"></span></label>
+          <input id="r" type="range" min="0.5" max="5" step="0.1" value="1">
+        </div>
+      </div>
+      <div>
+        <div class="control">
+          <label for="Kp">Kp = <span id="KpValue"></span></label>
+          <input id="Kp" type="range" min="0" max="20" step="0.1" value="1">
+        </div>
+        <div class="control">
+          <label for="Ki">Ki = <span id="KiValue"></span> 1/s</label>
+          <input id="Ki" type="range" min="0" max="20" step="0.1" value="0">
+        </div>
+        <div class="control">
+          <label for="Kd">Kd = <span id="KdValue"></span> s</label>
+          <input id="Kd" type="range" min="0" max="5" step="0.01" value="0">
+        </div>
+        <div class="control">
+          <label><input id="limitOn" type="checkbox" checked> Limit the control signal u</label>
+        </div>
+        <div class="control">
+          <label for="uMax">Limit: −<span id="uMaxValue"></span> ≤ u ≤ <span id="uMaxValue2"></span></label>
+          <input id="uMax" type="range" min="1" max="50" step="0.5" value="10">
+        </div>
+        <div class="control">
+          <label for="tEnd">Simulation window</label>
+          <select id="tEnd">
+            <option value="5">5 s</option>
+            <option value="10" selected>10 s</option>
+            <option value="20">20 s</option>
+            <option value="40">40 s</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="box">
+    <h2>Output y against the setpoint</h2>
+    <div class="chart"><canvas id="outChart" role="img" aria-label="Output y and setpoint r versus time"></canvas></div>
+  </section>
+
+  <section class="box">
+    <h2>Live metrics</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Metric</th><th>Value</th><th>How it is read off the curve</th></tr></thead>
+        <tbody id="metricRows"></tbody>
+      </table>
+    </div>
+    <p id="metricNote" class="note"></p>
+  </section>
+
+  <section class="box">
+    <h2>Control signal u</h2>
+    <div class="chart small"><canvas id="uChart" role="img" aria-label="Control signal u and its limits versus time"></canvas></div>
+    <p id="uInfo"></p>
+  </section>
+
+  <section class="box">
+    <h2>Validation checks</h2>
+    <p>Plant K/(τs + 1) with K = 1 and τ = 1 s, no limit. These use fixed values, independent of the sliders.</p>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Test</th><th>Expected</th><th>Calculated</th><th>Result</th></tr></thead>
+        <tbody id="validationBody"></tbody>
+      </table>
+    </div>
+    <p class="note">Check 2: with Kp = Ki = 1, the controller zero (s + 1) cancels one of the two
+       closed-loop poles, so the loop behaves like 1/(s + 1). That is why the simulated output
+       reaches 63.2% at t = 1 s, with no overshoot.</p>
+  </section>
+
+  <p id="loadError" class="fail" role="alert" hidden>The chart library could not load. Check your internet connection and reload.</p>
+
+  <script>
+  (() => {
+    'use strict';
+    const get = id => document.getElementById(id);
+    const num = id => Number(get(id).value);
+    const H = 0.001;   // simulation time step (s)
+
+    // ---------------- Our solver ----------------
+    // Plant slopes [dy/dt, dv/dt] for a held control signal u.
+    // First order:  τ·y' + y = K·u
+    // Second order: y'' + 2ζωn·y' + ωn²·y = K·ωn²·u   (v = y')
+    function slopes(p, y, v, u) {
+      if (p.order === 1) return [(p.K * u - y) / p.tau, 0];
+      return [v, p.K * p.wn * p.wn * u - 2 * p.zeta * p.wn * v - p.wn * p.wn * y];
+    }
+
+    // One RK4 step of length h, with u held constant during the step.
+    function rk4(p, y, v, u, h) {
+      const [a1, b1] = slopes(p, y, v, u);
+      const [a2, b2] = slopes(p, y + h / 2 * a1, v + h / 2 * b1, u);
+      const [a3, b3] = slopes(p, y + h / 2 * a2, v + h / 2 * b2, u);
+      const [a4, b4] = slopes(p, y + h * a3, v + h * b3, u);
+      return [y + h / 6 * (a1 + 2 * a2 + 2 * a3 + a4),
+              v + h / 6 * (b1 + 2 * b2 + 2 * b3 + b4)];
+    }
+
+    // Closed loop: setpoint step r at t = 0, everything starts at rest.
+    function simulate(p, c) {
+      const N = Math.round(c.tEnd / H);
+      let y = 0, v = 0, integral = 0, ePrev = null, u = 0;
+      const t = [], ys = [], us = [];
+      for (let i = 0; i <= N; i++) {
+        const e = c.r - y;                               // error
+        if (ePrev === null) ePrev = e;                   // first step: no derivative kick
+        integral += e * H;                               // ∫e dt
+        u = c.Kp * e + c.Ki * integral + c.Kd * (e - ePrev) / H;
+        if (c.limit) u = Math.min(c.uMax, Math.max(-c.uMax, u));  // actuator limit
+        ePrev = e;
+        t.push(i * H); ys.push(y); us.push(u);
+        [y, v] = rk4(p, y, v, u, H);                     // move the plant forward by H
+      }
+      return { t, y: ys, u: us };
+    }
+
+    // Time when y first crosses level (linear interpolation between samples).
+    function crossTime(t, y, level) {
+      for (let i = 1; i < y.length; i++) {
+        if ((y[i - 1] - level) * (y[i] - level) <= 0 && y[i] !== y[i - 1])
+          return t[i - 1] + (level - y[i - 1]) / (y[i] - y[i - 1]) * (t[i] - t[i - 1]);
+      }
+      return null;
+    }
+
+    // Metrics read off the simulated curve.
+    function metrics(t, y, r) {
+      const N = y.length;
+      const tail = y.slice(Math.floor(N * 0.95));
+      const yf = tail.reduce((a, b) => a + b, 0) / tail.length;     // final value
+      const band = 0.02 * Math.abs(yf);                             // ±2% band
+      const settled = Math.abs(yf) > 1e-9 && Number.isFinite(yf) &&
+        y.slice(Math.floor(N * 0.9)).every(v => Math.abs(v - yf) <= band);
+      const out = { yf, settled, ess: r - yf, essPct: 100 * (r - yf) / r,
+                    rise: null, overshoot: null, settle: null };
+      if (!settled) return out;
+      const t10 = crossTime(t, y, 0.1 * yf), t90 = crossTime(t, y, 0.9 * yf);
+      out.rise = (t10 !== null && t90 !== null) ? t90 - t10 : null;
+      out.overshoot = Math.max(0, 100 * (Math.max(...y) - yf) / Math.abs(yf));
+      let lastOut = -1;
+      for (let i = 0; i < N; i++) if (Math.abs(y[i] - yf) > band) lastOut = i;
+      out.settle = lastOut < 0 ? 0 : t[Math.min(lastOut + 1, N - 1)];
+      return out;
+    }
+    // ---------------- end of solver ----------------
+
+    // Keep about 1500 points for drawing (metrics still use all points).
+    function thin(t, y) {
+      const k = Math.max(1, Math.ceil(t.length / 1500)), pts = [];
+      for (let i = 0; i < t.length; i += k) pts.push({ x: t[i], y: y[i] });
+      return pts;
+    }
+    const fmt = (v, d, unit = '') => (v === null || !Number.isFinite(v)) ? '—' : v.toFixed(d) + unit;
+    const line = (label, data, color, extra = {}) => ({ label, data, borderColor: color,
+      backgroundColor: color, borderWidth: 2, pointRadius: 0, tension: 0, ...extra });
+    function chartOptions(yTitle) {
+      return {
+        responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+        interaction: { intersect: false, mode: 'nearest', axis: 'x' },
+        scales: {
+          x: { type: 'linear', min: 0, title: { display: true, text: 'Time (s)', color: '#cbd5e1' },
+               ticks: { color: '#cbd5e1', maxTicksLimit: 8 }, grid: { color: '#334155' } },
+          y: { title: { display: true, text: yTitle, color: '#cbd5e1' },
+               ticks: { color: '#cbd5e1' }, grid: { color: '#334155' } }
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#f8fafc', boxWidth: 18 } },
+          tooltip: { callbacks: { title: it => 't = ' + it[0].parsed.x.toFixed(3) + ' s',
+                                  label: it => it.dataset.label + ': ' + it.parsed.y.toFixed(4) } }
+        }
+      };
+    }
+
+    // ---------------- Validation checks (K = 1, τ = 1 s) ----------------
+    function validate() {
+      const K = 1, tau = 1, test = { order: 1, K, tau }, rows = [];
+      const add = (name, expected, actual, pass) => rows.push({ name, expected, actual, pass });
+
+      // Check 1: P only, Kp = 9.
+      let Kp = 9;
+      const tauCl = tau / (1 + K * Kp), essF = 1 / (1 + K * Kp);
+      let s = simulate(test, { Kp, Ki: 0, Kd: 0, r: 1, tEnd: 3, limit: false });
+      let m = metrics(s.t, s.y, 1);
+      const tauSim = crossTime(s.t, s.y, (1 - Math.exp(-1)) * m.yf);    // 63.2% point
+      add('1: Closed-loop τ = τ/(1+KKp), Kp = 9', '0.1 s', tauCl.toFixed(4) + ' s', Math.abs(tauCl - 0.1) < 1e-9);
+      add('1: Closed-loop τ, simulated (63.2% point)', '0.1 s', tauSim.toFixed(4) + ' s', Math.abs(tauSim - 0.1) < 0.002);
+      add('1: Steady-state error = 1/(1+KKp)', '10%', (100 * essF).toFixed(2) + '%', Math.abs(essF - 0.1) < 1e-9);
+      add('1: Steady-state error, simulated', '10%', m.essPct.toFixed(3) + '%', Math.abs(m.essPct - 10) < 0.1);
+
+      // Check 2: PI with Kp = 1, Ki = 1.
+      Kp = 1; const Ki = 1;
+      const wn = Math.sqrt(K * Ki / tau), zeta = (1 + K * Kp) / (2 * Math.sqrt(tau * K * Ki));
+      add('2: ωn = √(KKi/τ)', '1 rad/s', wn.toFixed(4) + ' rad/s', Math.abs(wn - 1) < 1e-9);
+      add('2: ζ = (1+KKp)/(2√(τKKi))', '1', zeta.toFixed(4), Math.abs(zeta - 1) < 1e-9);
+      s = simulate(test, { Kp, Ki, Kd: 0, r: 1, tEnd: 2, limit: false });
+      const y1 = s.y[Math.round(1 / H)];
+      add('2: Simulated y(1 s)', '0.632', y1.toFixed(4), Math.abs(y1 - 0.632) < 0.002);
+
+      // Check 3: any PI → zero steady-state error (several gain pairs).
+      for (const [kp, ki] of [[1, 1], [0.5, 0.3], [2, 5], [5, 20]]) {
+        s = simulate(test, { Kp: kp, Ki: ki, Kd: 0, r: 1, tEnd: 60, limit: false });
+        const e = 1 - s.y[s.y.length - 1];
+        add(`3: PI Kp = ${kp}, Ki = ${ki}, error at t = 60 s`, '0%', (100 * e).toExponential(2) + '%', Math.abs(e) < 1e-3);
+      }
+      get('validationBody').innerHTML = rows.map(r =>
+        `<tr><td>${r.name}</td><td>${r.expected}</td><td>${r.actual}</td>
+         <td class="${r.pass ? 'pass' : 'fail'}">${r.pass ? 'PASS' : 'FAIL'}</td></tr>`).join('');
+    }
+
+    // ---------------- Page ----------------
+    get('checkGuess').addEventListener('click', () => {
+      const a = get('guess').value;
+      get('feedback').textContent = !a ? 'Choose an answer first.' :
+        (a === 'smaller' ? 'Correct! ' : 'Not quite. ') +
+        'With P only the error is 1/(1 + KKp) of the setpoint: 50% at Kp = 1, 10% at Kp = 9. ' +
+        'It never reaches zero, because P needs a nonzero error to produce any u. Add Ki to remove it.';
+    });
+
+    validate();   // the table does not need the chart library
+
+    if (typeof Chart === 'undefined') { get('loadError').hidden = false; return; }
+    const outChart = new Chart(get('outChart'), { type: 'line', data: { datasets: [] }, options: chartOptions('Output') });
+    const uChart = new Chart(get('uChart'), { type: 'line', data: { datasets: [] }, options: chartOptions('Control signal u') });
+
+    function draw() {
+      const order = num('plantType');
+      get('tauRow').hidden = order !== 1;
+      get('zetaRow').hidden = order !== 2;
+      get('wnRow').hidden = order !== 2;
+      const plant = order === 1
+        ? { order: 1, K: num('K'), tau: num('tau') }
+        : { order: 2, K: num('K'), zeta: num('zeta'), wn: num('wn') };
+      const c = { Kp: num('Kp'), Ki: num('Ki'), Kd: num('Kd'), r: num('r'), tEnd: num('tEnd'),
+                  limit: get('limitOn').checked, uMax: num('uMax') };
+
+      get('KValue').textContent = plant.K.toFixed(1);
+      get('tauValue').textContent = num('tau').toFixed(1);
+      get('zetaValue').textContent = num('zeta').toFixed(2);
+      get('wnValue').textContent = num('wn').toFixed(1);
+      get('rValue').textContent = c.r.toFixed(1);
+      get('KpValue').textContent = c.Kp.toFixed(1);
+      get('KiValue').textContent = c.Ki.toFixed(1);
+      get('KdValue').textContent = c.Kd.toFixed(2);
+      get('uMaxValue').textContent = get('uMaxValue2').textContent = c.uMax.toFixed(1);
+      get('uMax').disabled = !c.limit;
+
+      const sim = simulate(plant, c);
+      const m = metrics(sim.t, sim.y, c.r);
+
+      outChart.data.datasets = [
+        line('Output y', thin(sim.t, sim.y), '#38bdf8'),
+        line('Setpoint r', [{ x: 0, y: c.r }, { x: c.tEnd, y: c.r }], '#94a3b8', { borderDash: [6, 4] })
+      ];
+      outChart.options.scales.x.max = c.tEnd;
+      outChart.update();
+
+      const uSets = [line('Control signal u', thin(sim.t, sim.u), '#fb923c')];
+      if (c.limit) {
+        uSets.push(line('Limit', [{ x: 0, y: c.uMax }, { x: c.tEnd, y: c.uMax }], '#fda4af', { borderDash: [6, 4] }));
+        uSets.push(line('Limit ', [{ x: 0, y: -c.uMax }, { x: c.tEnd, y: -c.uMax }], '#fda4af', { borderDash: [6, 4] }));
+      }
+      uChart.data.datasets = uSets;
+      uChart.options.scales.x.max = c.tEnd;
+      uChart.update();
+
+      const rows = [
+        ['Rise time (10% → 90%)', fmt(m.rise, 3, ' s'), 'Time between 10% and 90% of the final value'],
+        ['Overshoot', fmt(m.overshoot, 2, '%'), '(peak − final) / final'],
+        ['Settling time (±2%)', fmt(m.settle, 3, ' s'), 'Last time the output is outside ±2% of the final value'],
+        ['Steady-state error', fmt(m.ess, 4) + ' (' + fmt(m.essPct, 2, '%') + ' of r)', 'r − final value'],
+        ['Final value', fmt(m.yf, 4), 'Average over the last 5% of the window']
+      ];
+      get('metricRows').innerHTML = rows.map(x => `<tr><td>${x[0]}</td><td>${x[1]}</td><td>${x[2]}</td></tr>`).join('');
+      get('metricNote').textContent = m.settled ? '' :
+        'The output is still moving at the end of the window, so rise, overshoot and settling are not shown. ' +
+        'Choose a longer window, or the gains make the loop oscillate.';
+
+      const uPeak = Math.max(...sim.u.map(Math.abs));
+      get('uInfo').textContent = 'Largest |u| = ' + uPeak.toFixed(3) + '. ' +
+        (c.limit ? (uPeak >= c.uMax - 1e-9 ? 'u reached its limit, so the plant got less than the controller asked for.'
+                                            : 'u stayed inside its limit.')
+                 : 'No limit: a real actuator could not deliver unlimited u.');
+    }
+
+    const presets = { p: { Kp: 9, Ki: 0, Kd: 0 }, pi: { Kp: 1, Ki: 1, Kd: 0 }, pid: { Kp: 6, Ki: 8, Kd: 0.3 } };
+    document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
+      const p = presets[b.dataset.preset];
+      for (const k in p) get(k).value = p[k];
+      draw();
+    }));
+    document.querySelectorAll('input, select').forEach(el => {
+      if (el.id !== 'guess') el.addEventListener('input', draw);
+    });
+    draw();
+  })();
+  </script>
+</body>
+</html>

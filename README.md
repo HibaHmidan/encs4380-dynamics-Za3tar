@@ -69,6 +69,41 @@ Nothing to install. Open the live link above, or open `index.html` in any browse
 
 
 
+# Homework 2: PID Control Toolkit
+
+| Module | Owner | Issue | Status |
+|--------|-------|-------|--------|
+| P1. PID playground (+ validation checks) | Hiba Hmidan | 1230454 | Done |
+| P2. A slow sensor in the loop | Hiba Hmidan | 1230454 | Done |
+| P3. Digital PID | <owner> | #<n> | In progress |
+| P4. Tuning challenge | <owner> | #<n> | In progress |
+| My system (Micromouse drive motor) | <owner> | #<n> | In progress |
+
+**Simulation:** each page runs its own solver. Every 1 ms step, the PID computes u = Kp·e + Ki·∫e dt + Kd·de/dt, then the plant moves forward with RK4. All metrics are read off the simulated curve.
+
+## P1: PID playground (`p1.html`)
+- Plant: first order K/(τs + 1) or second order Kωn²/(s² + 2ζωns + ωn²); the user sets Kp, Ki, Kd, the setpoint and the u limit.
+- Shows the block diagram, output against setpoint, u with its limit, and live rise time (10–90%), overshoot, settling time (±2%) and steady-state error.
+- Validation checks (K = 1, τ = 1 s): Kp = 9 gives τ = 0.1 s and 10% error; Kp = Ki = 1 gives ωn = 1 rad/s and ζ = 1; any PI gives zero steady-state error.
+- No derivative kick: on the first step the previous error equals the current error.
+
+## P2: A slow sensor in the loop (`p2.html`)
+- A first-order sensor τs·dym/dt + ym = y sits in the feedback path, and the controller uses e = r − ym.
+- Shows the true output y and the sensor reading ym on one plot, and how overshoot grows with τs until the loop oscillates.
+- Plant fixed at K = 1, τ = 1 s; u limited to ±10.
+
+## Screenshots (Homework 2)
+P1:
+<img width="393" height="470" alt="image" src="https://github.com/user-attachments/assets/c14f18af-948e-415d-80ea-ecfc89c6ad99" />
+
+P2:
+<img width="398" height="461" alt="image" src="https://github.com/user-attachments/assets/5e7c77b0-aeff-471a-a6e9-573f9cdd8ee3" />
+
+
+
+
+
+
 ## Tools used
 - HTML and JavaScript, with [Plotly.js](https://plotly.com/javascript/) for the graphs.
 - GitHub Pages for hosting.

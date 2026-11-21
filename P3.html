@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Micromouse Speed Control · Digital PID</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #182d27;
+    --muted: #52625b;
+    --paper: #f5f0e4;
+    --panel: #fffdf7;
+    --border: #d7d5c9;
+    --green: #17644f;
+    --orange: #b44e20;
+    --lime: #dbf389;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: var(--paper); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 1240px; margin: auto; padding: 0 clamp(14px, 4vw, 48px) 40px; }
+  h1, h2, p { margin-top: 0; }
+  h1 { margin-bottom: 12px; font-size: clamp(40px, 7.5vw, 88px); line-height: .98; letter-spacing: -.075em; }
+  h2 { margin-bottom: 10px; font-size: 1.25rem; line-height: 1.2; letter-spacing: -.035em; }
+  p { margin-bottom: 14px; }
+  small, .muted { color: var(--muted); }
+  .masthead, .tag, .metrics strong { font-family: var(--mono); }
+  .masthead { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 18px 0 12px; font-size: .76rem; font-weight: 700; letter-spacing: .06em; }
+  .hero {
+    display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr); align-items: center;
+    gap: clamp(22px, 4vw, 56px); padding: clamp(20px, 4vw, 48px); color: #f8f8eb; border-radius: 16px 16px 4px 4px;
+    background-color: #132c24;
+    background-image: linear-gradient(#d1e7c815 1px, transparent 1px), linear-gradient(90deg, #d1e7c815 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .hero p:last-child { color: #d4e1d6; max-width: 42ch; margin-bottom: 0; }
+  .tag { color: var(--lime); text-transform: uppercase; font-size: .73rem; font-weight: 700; letter-spacing: .11em; margin-bottom: 16px; }
+  .timing { margin: 0; padding: 14px; border: 1px solid #577164; border-radius: 10px; background: #19342a; min-width: 0; }
+  .timing h2 { font-size: .95rem; letter-spacing: 0; }
+  .trace { height: 126px; }
+  .timing figcaption { color: #dbe6d9; font: .73rem/1.5 var(--mono); padding-top: 4px; }
+  .layout { display: grid; grid-template-columns: minmax(240px, 285px) minmax(0, 1fr); gap: 14px; margin: 14px 0; align-items: start; }
+  section, aside { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: clamp(14px, 2.4vw, 24px); min-width: 0; }
+  .results { display: grid; gap: 14px; min-width: 0; }
+  .controls-heading { margin-bottom: 12px; }
+  .control { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; margin: 0 0 12px; font-size: .875rem; }
+  .control input { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--green); min-height: 24px; }
+  .control label { align-self: center; }
+  output { font: 700 .8rem/1.5 var(--mono); padding: 2px 6px; color: #134d3f; background: #e7eddb; border-radius: 3px; }
+  button { border: 1px solid #b7c2b3; border-radius: 5px; background: var(--panel); color: var(--ink); font: inherit; font-size: .82rem; font-weight: 650; padding: 6px 10px; min-height: 40px; cursor: pointer; }
+  button:hover { border-color: var(--green); }
+  button.selected, #copy { background: var(--lime); border-color: #9dae5d; color: #21341a; }
+  :focus-visible { outline: 3px solid #b64d20; outline-offset: 3px; }
+  .buttons, .legend { display: flex; flex-wrap: wrap; gap: 6px; }
+  .presets { margin-bottom: 18px; }
+  .switch { display: flex; align-items: center; gap: 7px; font-size: .88rem; font-weight: 650; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--green); }
+  .plant { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px; }
+  .equation { font-family: var(--mono); font-size: .84rem; }
+  .chart-head, .code-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .chart-head h2, .code-head h2 { margin: 0; }
+  .legend { gap: 4px 14px; font-size: .78rem; color: var(--muted); margin-bottom: 5px; }
+  .legend span::before { content: ""; display: inline-block; width: 16px; vertical-align: middle; margin-right: 5px; border-top: 3px solid var(--line); }
+  .legend .dashed::before { border-top-style: dashed; }
+  canvas { display: block; width: 100%; height: 205px; }
+  .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--border); margin-top: 10px; }
+  .metrics div { padding: 10px 5px 0; font-size: .74rem; color: var(--muted); }
+  .metrics div + div { border-left: 1px solid var(--border); padding-left: 10px; }
+  .metrics strong { display: block; font-size: clamp(.85rem, 2.5vw, 1.32rem); color: var(--ink); }
+  .bottom { display: grid; grid-template-columns: minmax(240px, 285px) minmax(0, 1fr); gap: 14px; align-items: start; }
+  fieldset { margin: 0 0 12px; border: 0; padding: 0; min-width: 0; }
+  fieldset legend { padding: 0; margin-bottom: 7px; }
+  fieldset label { display: block; padding: 5px 0; }
+  #feedback { margin: 10px 0 0; font-size: .85rem; }
+  #feedback:empty { display: none; }
+  pre { background: #132c24; color: #eff5e2; border-radius: 6px; padding: 14px; overflow: auto; max-height: 380px; font-size: .83rem; }
+  #copyStatus { display: block; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 14px; font-size: .9rem; }
+  nav a { color: var(--green); }
+  nav span { color: var(--muted); }
+  .sweep { margin: 14px 0; }
+  .table-wrap { overflow-x: auto; margin-top: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { border: 1px solid var(--border); padding: 6px 9px; text-align: left; white-space: nowrap; }
+  th { background: #e7eddb; }
+  tr.current td { background: var(--lime); font-weight: 700; }
+  .bad { color: var(--orange); font-weight: 700; }
+  @media (max-width: 760px) {
+    .hero, .layout, .bottom { grid-template-columns: 1fr; }
+    .hero { gap: 18px; }
+    canvas { height: 178px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <nav aria-label="Modules">
+    <a href="index.html">Homework 1</a>
+    <span aria-hidden="true">| Control:</span>
+    <a href="P1.html">P1 PID playground</a>
+    <a href="P2.html">P2 Slow sensor</a>
+    <strong aria-current="page">P3 Digital PID</strong>
+  </nav>
+  <header>
+    <div class="masthead"><span>ENCS4380 / CONTROL</span><span>MICROMOUSE</span></div>
+    <div class="hero">
+      <div>
+        <p class="tag">P3 / Digital PID</p>
+        <h1>Wheel Speed<br>Control</h1>
+        <p>Explore how often a Micromouse controller would read wheel speed and update its motor command.</p>
+      </div>
+      <figure class="timing">
+        <h2>When the controller samples</h2>
+        <canvas id="timing" class="trace" role="img" aria-label="Sampling instants for the current controller and a fast reference"></canvas>
+        <figcaption id="clock-rate"></figcaption>
+      </figure>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside aria-labelledby="controls-heading">
+      <h2 class="controls-heading" id="controls-heading">Controller settings</h2>
+      <div class="buttons presets">
+        <button type="button" id="quick">Fast sampling</button>
+        <button type="button" id="slow">Slow sampling</button>
+        <button type="button" id="windup">Windup demo</button>
+      </div>
+      <div id="sliders"></div>
+      <label class="switch"><input id="anti" type="checkbox" checked> Enable anti-windup</label>
+      <p><small>When the command saturates, anti-windup pauses integration if the error would push it farther past the limit.</small></p>
+      <div class="plant">
+        <h2>First-order motor model</h2>
+        <p class="equation muted">G(s) = K / (τs + 1)</p>
+        <div id="plant"></div>
+        <small>Enter your project’s measured K and τ when available.</small>
+      </div>
+    </aside>
+
+    <div class="results">
+      <section aria-labelledby="response-heading">
+        <div class="chart-head">
+          <h2 id="response-heading">Wheel speed response</h2>
+          <div class="buttons" role="group" aria-label="Plot time window">
+            <button type="button" id="full" class="selected" aria-pressed="true">Full run</button>
+            <button type="button" id="detail" aria-pressed="false">First 3 s</button>
+          </div>
+        </div>
+        <div class="legend">
+          <span style="--line:#17644f">Simulated speed</span>
+          <span class="dashed" style="--line:#68716b">Setpoint</span>
+          <span class="dashed" style="--line:#b44e20">Speed at Tₛ = 0.05 s</span>
+        </div>
+        <canvas id="response" role="img" aria-label="Output, setpoint and fast-sampling reference over time"></canvas>
+        <div class="metrics">
+          <div>Overshoot<strong id="overshoot"></strong></div>
+          <div>Settling time (±2%)<strong id="settling"></strong></div>
+          <div>Error at end<strong id="error"></strong></div>
+        </div>
+      </section>
+      <section aria-labelledby="command-heading">
+        <h2 id="command-heading">Motor command</h2>
+        <div class="legend">
+          <span style="--line:#17644f">Held command u</span>
+          <span class="dashed" style="--line:#92511f">Command limits</span>
+        </div>
+        <canvas id="command" role="img" aria-label="Stair-step control command and saturation limits over time"></canvas>
+        <small id="sampling"></small>
+      </section>
+    </div>
+  </div>
+
+  <section class="sweep" aria-labelledby="sweep-heading">
+    <h2 id="sweep-heading">How performance falls as Tₛ grows</h2>
+    <p class="muted">Each point is a full simulation with your current gains, limit and plant, changing only Tₛ. The dashed line marks your current Tₛ.</p>
+    <div class="legend">
+      <span style="--line:#17644f">Overshoot</span>
+      <span class="dashed" style="--line:#b44e20">Current Tₛ</span>
+    </div>
+    <canvas id="sweepChart" role="img" aria-label="Overshoot versus sampling time"></canvas>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tₛ</th><th>Overshoot</th><th>Settling time (±2%)</th><th>Error at end</th><th>Verdict</th></tr></thead>
+        <tbody id="sweepRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="bottom">
+  <section id="prediction">
+    <h2>Predict, then check</h2>
+    <fieldset>
+      <legend>Keep the gains fixed and raise Tₛ from 0.05 s to 1 s. What happens to the response?</legend>
+      <label><input type="radio" name="guess" value="same"> Nothing changes, because the controller is the same.</label>
+      <label><input type="radio" name="guess" value="smooth"> It gets a little slower but stays smooth.</label>
+      <label><input type="radio" name="guess" value="breaks"> Overshoot grows and the loop can stop settling.</label>
+    </fieldset>
+    <button type="button" id="check">Check prediction</button>
+    <p id="feedback" role="status"></p>
+  </section>
+
+  <section>
+    <div class="code-head">
+      <h2>Arduino code</h2>
+      <button type="button" id="copy">Copy code</button>
+    </div>
+    <p class="muted">The example reads a normalized measurement on A0 and writes PWM on pin 9. For a motor speed loop, replace the A0 reading with speed from your encoder, in the same units as the setpoint.</p>
+    <pre tabindex="0"><code id="arduino"></code></pre>
+    <small id="copyStatus" role="status"></small>
+  </section>
+  </div>
+</main>
+<script>
+"use strict";
+
+const byId = (id) => document.getElementById(id);
+const settings = [
+  { id: "ts", name: "Sampling time Tₛ", min: 0.02, max: 2, step: 0.01, digits: 2, units: " s" },
+  { id: "kp", name: "Proportional Kₚ", min: 0, max: 8, step: 0.1, digits: 1 },
+  { id: "ki", name: "Integral Kᵢ", min: 0, max: 8, step: 0.1, digits: 1 },
+  { id: "kd", name: "Derivative Kd", min: 0, max: 2, step: 0.05, digits: 2 },
+  { id: "limit", name: "Upper command limit", min: 0.25, max: 5, step: 0.05, digits: 2 },
+  { id: "gain", name: "Plant gain K", min: 0.1, max: 10, step: 0.01, digits: 2 },
+  { id: "tau", name: "Time constant τ", min: 0.05, max: 10, step: 0.01, digits: 2, units: " s" }
+];
+const presets = {
+  quick: { ts: 0.05, kp: 2, ki: 1.5, kd: 0.1, limit: 2, gain: 1, tau: 1, anti: true },
+  slow: { ts: 1.25, kp: 2, ki: 1.5, kd: 0.1, limit: 2, gain: 1, tau: 1, anti: true },
+  windup: { ts: 0.1, kp: 4, ki: 6, kd: 0, limit: 1.25, gain: 1, tau: 2, anti: false }
+};
+
+for (const setting of settings) {
+  const row = document.createElement("div");
+  row.className = "control";
+  row.innerHTML = '<label for="' + setting.id + '">' + setting.name + '</label>' +
+    '<output id="' + setting.id + '-value" for="' + setting.id + '"></output>' +
+    '<input type="range" id="' + setting.id + '" min="' + setting.min +
+    '" max="' + setting.max + '" step="' + setting.step + '">';
+  byId(["gain", "tau"].includes(setting.id) ? "plant" : "sliders").append(row);
+  byId(setting.id).addEventListener("input", render);
+}
+byId("anti").addEventListener("change", render);
+
+let showDetail = false;
+for (const id of ["full", "detail"]) {
+  byId(id).addEventListener("click", () => {
+    showDetail = id === "detail";
+    render();
+  });
+}
+
+function controllerStep(state, measured, s) {
+  const error = 1 - measured;
+  const proportional = s.kp * error;
+  if (state.lastError === null) state.lastError = error;   // first sample: no derivative kick
+  const derivative = s.kd * (error - state.lastError) / s.ts;
+  const integralChange = s.ki * s.ts * error;
+  const candidate = proportional + state.integral + integralChange + derivative;
+
+  const pushesHigh = candidate > s.limit && integralChange > 0;
+  const pushesLow = candidate < 0 && integralChange < 0;
+  if (!s.anti || (!pushesHigh && !pushesLow)) {
+    state.integral += integralChange;
+  }
+  state.lastError = error;
+  return Math.min(s.limit, Math.max(0, proportional + state.integral + derivative));
+}
+
+function simulate(s, duration) {
+  const state = { integral: 0, lastError: null };
+  const output = [[0, 0]];
+  const command = [];
+  let y = 0;
+
+  for (let sample = 0; sample * s.ts < duration - 1e-9; sample++) {
+    const start = sample * s.ts;
+    const interval = Math.min(s.ts, duration - start);
+    const u = controllerStep(state, y, s);
+    command.push([start, u], [start + interval, u]);
+
+    // Keep the held input constant while integrating the plant with Euler.
+    const steps = Math.ceil(interval / Math.min(0.01, s.tau / 80));
+    const dt = interval / steps;
+    for (let i = 1; i <= steps; i++) {
+      y += dt * (s.gain * u - y) / s.tau;
+      output.push([start + i * dt, y]);
+    }
+  }
+  return { output, command };
+}
+
+function prepareCanvas(canvas) {
+  const ratio = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  canvas.width = w * ratio;
+  canvas.height = h * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ratio, ratio);
+  return { ctx, w, h };
+}
+
+function drawTiming(ts) {
+  const canvas = byId("timing");
+  const { ctx, w, h } = prepareCanvas(canvas);
+  const left = 2;
+  const right = w - 3;
+  const windowSeconds = 2.5;
+  const at = (time) => left + (right - left) * time / windowSeconds;
+  const rows = [
+    { label: "Current interval", interval: ts, color: "#dbf389" },
+    { label: "Fast reference", interval: 0.05, color: "#a4c8b7" }
+  ];
+  ctx.font = "11px ui-monospace, monospace";
+  for (const [index, row] of rows.entries()) {
+    const baseline = 44 + index * 40;
+    ctx.fillStyle = row.color;
+    ctx.fillText(row.label + " · " + row.interval.toFixed(2) + " s", left, baseline - 19);
+    ctx.fillRect(left, baseline, right - left, 1);
+    for (let tick = 0; tick * row.interval <= windowSeconds; tick++) {
+      ctx.fillRect(at(tick * row.interval), baseline - 12, 1.5, 12);
+    }
+  }
+  ctx.fillStyle = "#dbe6d9";
+  ctx.fillText("0 s", left, h - 10);
+  ctx.textAlign = "right";
+  ctx.fillText("2.5 s", right, h - 10);
+  canvas.setAttribute("aria-label", "Sampling instants over 2.5 seconds. Current interval is " + ts.toFixed(2) + " seconds, and fast reference is 0.05 seconds.");
+}
+
+function draw(id, duration, yMax, series, xLabel = "Time (s)") {
+  const { ctx, w, h } = prepareCanvas(byId(id));
+  const left = 43, right = w - 11, top = 12, bottom = h - 33;
+  const yMin = -0.08 * yMax;
+  const yTop = 1.08 * yMax;
+  const x = (t) => left + t / duration * (right - left);
+  const y = (value) => bottom - (value - yMin) / (yTop - yMin) * (bottom - top);
+  ctx.font = "11px system-ui";
+  ctx.fillStyle = "#52625b";
+  ctx.strokeStyle = "#e6e1d4";
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i <= 4; i++) {
+    const value = i * yMax / 4;
+    const t = i * duration / 4;
+    ctx.beginPath();
+    ctx.moveTo(left, y(value));
+    ctx.lineTo(right, y(value));
+    ctx.moveTo(x(t), top);
+    ctx.lineTo(x(t), bottom);
+    ctx.stroke();
+    ctx.textAlign = "right";
+    ctx.fillText(Number(value.toFixed(2)), left - 5, y(value) + 4);
+    ctx.textAlign = ["left", "center", "center", "center", "right"][i];
+    ctx.fillText(Number(t.toFixed(1)), x(t), bottom + 13);
+  }
+  ctx.textAlign = "center";
+  ctx.fillText(xLabel, (left + right) / 2, h - 4);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(left - 1, top, right - left + 2, bottom - top);
+  ctx.clip();
+  for (const { points, color, dashed } of series) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = dashed ? 1.5 : 2.5;
+    ctx.setLineDash(dashed ? [6, 4] : []);
+    ctx.beginPath();
+    ctx.moveTo(x(points[0][0]), y(points[0][1]));
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(x(points[i][0]), y(points[i][1]));
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function measure(output) {
+  let peak = 0;
+  let lastOutside = 0;
+  for (const [time, value] of output) {
+    peak = Math.max(peak, value);
+    if (Math.abs(1 - value) > 0.02) lastOutside = time;
+  }
+  const firstSettled = output.find(([time]) => time > lastOutside);
+  return {
+    overshoot: 100 * Math.max(0, peak - 1),
+    settle: firstSettled ? firstSettled[0] : null,
+    error: 100 * Math.abs(1 - output.at(-1)[1])
+  };
+}
+
+function metrics(output, duration) {
+  const m = measure(output);
+  byId("overshoot").textContent = m.overshoot.toFixed(1) + "%";
+  byId("settling").textContent = m.settle !== null ? m.settle.toFixed(2) + " s" : ">" + duration + " s";
+  byId("error").textContent = m.error.toFixed(1) + "%";
+}
+
+const sweepTimes = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1, 1.25, 1.5, 1.75, 2];
+const tableTimes = [0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2];
+
+function drawSweep(s, duration) {
+  const rows = sweepTimes.concat(tableTimes, [s.ts]).filter((v, i, a) => a.indexOf(v) === i)
+    .sort((a, b) => a - b)
+    .map((ts) => ({ ts, ...measure(simulate({ ...s, ts }, duration).output) }));
+  const chartRows = rows.filter((r) => sweepTimes.includes(r.ts));
+  const top = Math.max(10, Math.ceil(Math.max(...chartRows.map((r) => r.overshoot)) / 10) * 10);
+  draw("sweepChart", 2, top, [
+    { points: [[s.ts, 0], [s.ts, top]], color: "#b44e20", dashed: true },
+    { points: chartRows.map((r) => [r.ts, r.overshoot]), color: "#17644f" }
+  ], "Sampling time Tₛ (s)");
+
+  const shown = rows.filter((r) => tableTimes.includes(r.ts) || r.ts === s.ts);
+  byId("sweepRows").innerHTML = shown.map((r) => {
+    const settles = r.settle !== null && r.error < 2;
+    return '<tr' + (r.ts === s.ts ? ' class="current"' : '') + '><td>' + r.ts.toFixed(2) + ' s' +
+      (r.ts === s.ts ? ' (current)' : '') + '</td><td>' + r.overshoot.toFixed(1) + '%</td><td>' +
+      (r.settle !== null ? r.settle.toFixed(2) + ' s' : '&gt;' + duration + ' s') + '</td><td>' +
+      r.error.toFixed(1) + '%</td><td' + (settles ? '' : ' class="bad"') + '>' +
+      (settles ? 'Settles' : 'Does not settle') + '</td></tr>';
+  }).join("");
+  byId("sweepChart").setAttribute("aria-label", "Overshoot versus sampling time from 0.05 to 2 seconds, with the current Ts of " + s.ts.toFixed(2) + " seconds marked.");
+}
+
+function arduinoCode(s) {
+  return [
+    "// Digital PID. A0 and pin 9 are an illustrative analog/PWM setup.",
+    "const int INPUT_PIN = A0;",
+    "const int PWM_PIN = 9;",
+    "const float SETPOINT = 1.0f;",
+    "const float KP = " + s.kp.toFixed(2) + "f;",
+    "const float KI = " + s.ki.toFixed(2) + "f;",
+    "const float KD = " + s.kd.toFixed(2) + "f;",
+    "const float TS = " + s.ts.toFixed(2) + "f;",
+    "const float U_MAX = " + s.limit.toFixed(2) + "f;",
+    "const bool ANTI_WINDUP = " + s.anti + ";",
+    "const unsigned long SAMPLE_US = " + Math.round(s.ts * 1000000) + "UL;",
+    "",
+    "float integral = 0.0f;",
+    "float previousError = 0.0f;",
+    "bool firstSample = true;",
+    "unsigned long lastSample;",
+    "",
+    "void setup() {",
+    "  pinMode(PWM_PIN, OUTPUT);",
+    "  lastSample = micros() - SAMPLE_US;",
+    "}",
+    "",
+    "void loop() {",
+    "  const unsigned long now = micros();",
+    "  if (now - lastSample < SAMPLE_US) return;",
+    "  lastSample += SAMPLE_US;",
+    "",
+    "  // Scale a 10-bit ADC reading to a measurement range of 0 to 2.",
+    "  const float measured = 2.0f * analogRead(INPUT_PIN) / 1023.0f;",
+    "  const float error = SETPOINT - measured;",
+    "  if (firstSample) { previousError = error; firstSample = false; }  // no derivative kick",
+    "  const float proportional = KP * error;",
+    "  const float derivative = KD * (error - previousError) / TS;",
+    "  const float integralChange = KI * TS * error;",
+    "  const float candidate = proportional + integral + integralChange + derivative;",
+    "  const bool pushesHigh = candidate > U_MAX && integralChange > 0;",
+    "  const bool pushesLow = candidate < 0.0f && integralChange < 0;",
+    "  if (!ANTI_WINDUP || (!pushesHigh && !pushesLow)) {",
+    "    integral += integralChange;",
+    "  }",
+    "",
+    "  const float command = constrain(proportional + integral + derivative, 0.0f, U_MAX);",
+    "  analogWrite(PWM_PIN, int(255.0f * command / U_MAX + 0.5f));",
+    "  previousError = error;",
+    "}"
+  ].join("\n");
+}
+
+function render() {
+  const s = { anti: byId("anti").checked };
+  for (const setting of settings) {
+    s[setting.id] = byId(setting.id).valueAsNumber;
+    byId(setting.id + "-value").value = s[setting.id].toFixed(setting.digits) + (setting.units || "");
+  }
+  for (const [id, preset] of Object.entries(presets)) {
+    const active = Object.keys(preset).every((key) => preset[key] === s[key]);
+    byId(id).classList.toggle("selected", active);
+    byId(id).setAttribute("aria-pressed", String(active));
+  }
+
+  for (const id of ["full", "detail"]) {
+    const active = (id === "detail") === showDetail;
+    byId(id).classList.toggle("selected", active);
+    byId(id).setAttribute("aria-pressed", String(active));
+  }
+  drawTiming(s.ts);
+  byId("clock-rate").textContent = "Each tick is one update · " + (1 / s.ts).toFixed(2) + " updates/s";
+
+  const duration = Math.max(12, Math.ceil(6 * s.tau));
+  const plotWindow = showDetail ? 3 : duration;
+  const current = simulate(s, duration);
+  const reference = simulate({ ...s, ts: 0.05 }, duration);
+  let responseMax = 1;
+  for (const curve of [current.output, reference.output]) {
+    for (const [, measured] of curve) responseMax = Math.max(responseMax, measured);
+  }
+  const flatLine = (value, color) => ({ points: [[0, value], [plotWindow, value]], color, dashed: true });
+  draw("response", plotWindow, responseMax, [
+    flatLine(1, "#68716b"),
+    { points: reference.output, color: "#b44e20", dashed: true },
+    { points: current.output, color: "#17644f" }
+  ]);
+  draw("command", plotWindow, s.limit, [
+    { points: current.command, color: "#17644f" },
+    flatLine(0, "#92511f"),
+    flatLine(s.limit, "#92511f")
+  ]);
+  metrics(current.output, duration);
+  drawSweep(s, duration);
+  byId("sampling").textContent = "Each command is held for " + s.ts.toFixed(2) + " s. Response metrics use the full " + duration + " s run.";
+  byId("arduino").textContent = arduinoCode(s);
+  byId("copyStatus").textContent = "";
+}
+
+for (const [id, preset] of Object.entries(presets)) {
+  byId(id).addEventListener("click", () => {
+    for (const setting of settings) byId(setting.id).value = preset[setting.id];
+    byId("anti").checked = preset.anti;
+    render();
+  });
+}
+
+byId("check").addEventListener("click", () => {
+  const choice = document.querySelector('input[name="guess"]:checked');
+  if (!choice) {
+    byId("feedback").textContent = "Select a prediction first.";
+    return;
+  }
+  const intro = choice.value === "breaks" ? "Correct. " : "Not quite. ";
+  byId("feedback").textContent = intro + "A longer Tₛ holds each command for longer, so the controller acts on old information, like a delay in the loop. " +
+    "Overshoot grows and the loop can stop settling. Compare Fast sampling and Slow sampling, then read the table below the plots.";
+});
+
+byId("copy").addEventListener("click", async () => {
+  const code = byId("arduino");
+  try {
+    await navigator.clipboard.writeText(code.textContent);
+    byId("copyStatus").textContent = "Copied.";
+  } catch {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(code);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const copied = document.execCommand("copy");
+    byId("copyStatus").textContent = copied ? "Copied." : "Code selected. Press Ctrl+C or Command+C.";
+  }
+});
+
+byId("quick").click();
+window.addEventListener("resize", render);
+</script>
+</body>
+</html>

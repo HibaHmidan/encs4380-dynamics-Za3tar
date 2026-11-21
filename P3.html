@@ -3,93 +3,78 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Micromouse Speed Control · Digital PID</title>
+<title>P3: Digital PID</title>
 <style>
-  :root {
-    color-scheme: light;
-    --ink: #182d27;
-    --muted: #52625b;
-    --paper: #f5f0e4;
-    --panel: #fffdf7;
-    --border: #d7d5c9;
-    --green: #17644f;
-    --orange: #b44e20;
-    --lime: #dbf389;
-    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  }
+  :root { color-scheme: dark; --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc;
+          --muted: #cbd5e1; --border: #475569; --mono: ui-monospace, "Cascadia Mono", Consolas, monospace; }
   * { box-sizing: border-box; }
-  body { margin: 0; color: var(--ink); background: var(--paper); font: 16px/1.5 system-ui, sans-serif; }
-  main { max-width: 1240px; margin: auto; padding: 0 clamp(14px, 4vw, 48px) 40px; }
+  body { margin: 0; color: var(--text); background: var(--bg); font: 16px/1.6 system-ui, -apple-system, Arial, sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 18px; }
   h1, h2, p { margin-top: 0; }
-  h1 { margin-bottom: 12px; font-size: clamp(40px, 7.5vw, 88px); line-height: .98; letter-spacing: -.075em; }
-  h2 { margin-bottom: 10px; font-size: 1.25rem; line-height: 1.2; letter-spacing: -.035em; }
+  h1, h2 { color: var(--accent); line-height: 1.3; }
+  h1 { margin-bottom: 12px; font-size: 2em; }
+  h2 { margin-bottom: 10px; font-size: 1.4rem; }
   p { margin-bottom: 14px; }
+  a { color: #7dd3fc; }
   small, .muted { color: var(--muted); }
-  .masthead, .tag, .metrics strong { font-family: var(--mono); }
-  .masthead { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 18px 0 12px; font-size: .76rem; font-weight: 700; letter-spacing: .06em; }
-  .hero {
-    display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr); align-items: center;
-    gap: clamp(22px, 4vw, 56px); padding: clamp(20px, 4vw, 48px); color: #f8f8eb; border-radius: 16px 16px 4px 4px;
-    background-color: #132c24;
-    background-image: linear-gradient(#d1e7c815 1px, transparent 1px), linear-gradient(90deg, #d1e7c815 1px, transparent 1px);
-    background-size: 24px 24px;
-  }
-  .hero p:last-child { color: #d4e1d6; max-width: 42ch; margin-bottom: 0; }
-  .tag { color: var(--lime); text-transform: uppercase; font-size: .73rem; font-weight: 700; letter-spacing: .11em; margin-bottom: 16px; }
-  .timing { margin: 0; padding: 14px; border: 1px solid #577164; border-radius: 10px; background: #19342a; min-width: 0; }
-  .timing h2 { font-size: .95rem; letter-spacing: 0; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 24px; }
+  nav span { opacity: .65; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr); align-items: center; gap: 24px; }
+  .timing { margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); min-width: 0; }
+  .timing h2 { font-size: 1rem; }
   .trace { height: 126px; }
-  .timing figcaption { color: #dbe6d9; font: .73rem/1.5 var(--mono); padding-top: 4px; }
-  .layout { display: grid; grid-template-columns: minmax(240px, 285px) minmax(0, 1fr); gap: 14px; margin: 14px 0; align-items: start; }
-  section, aside { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: clamp(14px, 2.4vw, 24px); min-width: 0; }
-  .results { display: grid; gap: 14px; min-width: 0; }
+  .timing figcaption { color: var(--muted); font: .78rem/1.5 var(--mono); padding-top: 4px; }
+  .layout { display: grid; grid-template-columns: minmax(240px, 285px) minmax(0, 1fr); gap: 18px; margin: 18px 0; align-items: start; }
+  section, aside { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; min-width: 0; }
+  .results { display: grid; gap: 18px; min-width: 0; }
   .controls-heading { margin-bottom: 12px; }
-  .control { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; margin: 0 0 12px; font-size: .875rem; }
-  .control input { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--green); min-height: 24px; }
+  .control { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; margin: 0 0 12px; font-size: .9rem; }
+  .control input { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); min-height: 24px; }
   .control label { align-self: center; }
-  output { font: 700 .8rem/1.5 var(--mono); padding: 2px 6px; color: #134d3f; background: #e7eddb; border-radius: 3px; }
-  button { border: 1px solid #b7c2b3; border-radius: 5px; background: var(--panel); color: var(--ink); font: inherit; font-size: .82rem; font-weight: 650; padding: 6px 10px; min-height: 40px; cursor: pointer; }
-  button:hover { border-color: var(--green); }
-  button.selected, #copy { background: var(--lime); border-color: #9dae5d; color: #21341a; }
-  :focus-visible { outline: 3px solid #b64d20; outline-offset: 3px; }
+  output { font: 700 .8rem/1.5 var(--mono); padding: 2px 6px; color: var(--accent); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; }
+  button { background: #075985; color: #fff; border: 1px solid var(--accent); border-radius: 7px; font: inherit; font-size: .88rem; padding: 9px 12px; min-height: 40px; cursor: pointer; }
+  button:hover { background: #0369a1; }
+  button.selected { background: var(--accent); color: var(--bg); font-weight: 700; }
+  :focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
   .buttons, .legend { display: flex; flex-wrap: wrap; gap: 6px; }
   .presets { margin-bottom: 18px; }
-  .switch { display: flex; align-items: center; gap: 7px; font-size: .88rem; font-weight: 650; }
-  input[type="checkbox"], input[type="radio"] { accent-color: var(--green); }
+  .switch { display: flex; align-items: center; gap: 7px; font-size: .9rem; font-weight: 650; }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width: 18px; height: 18px; vertical-align: middle; }
   .plant { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px; }
-  .equation { font-family: var(--mono); font-size: .84rem; }
+  .equation { font-family: var(--mono); font-size: .85rem; }
   .chart-head, .code-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
   .chart-head h2, .code-head h2 { margin: 0; }
-  .legend { gap: 4px 14px; font-size: .78rem; color: var(--muted); margin-bottom: 5px; }
+  .legend { gap: 4px 14px; font-size: .8rem; color: var(--muted); margin-bottom: 5px; }
   .legend span::before { content: ""; display: inline-block; width: 16px; vertical-align: middle; margin-right: 5px; border-top: 3px solid var(--line); }
   .legend .dashed::before { border-top-style: dashed; }
   canvas { display: block; width: 100%; height: 205px; }
   .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--border); margin-top: 10px; }
-  .metrics div { padding: 10px 5px 0; font-size: .74rem; color: var(--muted); }
+  .metrics div { padding: 10px 5px 0; font-size: .78rem; color: var(--muted); }
   .metrics div + div { border-left: 1px solid var(--border); padding-left: 10px; }
-  .metrics strong { display: block; font-size: clamp(.85rem, 2.5vw, 1.32rem); color: var(--ink); }
-  .bottom { display: grid; grid-template-columns: minmax(240px, 285px) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .metrics strong { display: block; font-family: var(--mono); font-size: clamp(.85rem, 2.5vw, 1.32rem); color: var(--text); }
+  .sweep { margin: 18px 0; }
+  .table-wrap { overflow-x: auto; margin-top: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { border: 1px solid #64748b; padding: 8px 9px; text-align: left; white-space: nowrap; }
+  th { color: #7dd3fc; background: var(--bg); }
+  tr.current td { background: #0c4a6e; font-weight: 700; }
+  .bad { color: #fda4af; font-weight: bold; }
+  .bottom { display: grid; grid-template-columns: minmax(240px, 285px) minmax(0, 1fr); gap: 18px; align-items: start; }
+  #prediction { border-color: #6366f1; background: #1e1b4b; }
   fieldset { margin: 0 0 12px; border: 0; padding: 0; min-width: 0; }
   fieldset legend { padding: 0; margin-bottom: 7px; }
   fieldset label { display: block; padding: 5px 0; }
-  #feedback { margin: 10px 0 0; font-size: .85rem; }
+  #feedback { margin: 10px 0 0; font-size: .9rem; }
   #feedback:empty { display: none; }
-  pre { background: #132c24; color: #eff5e2; border-radius: 6px; padding: 14px; overflow: auto; max-height: 380px; font-size: .83rem; }
+  pre { background: #0b1220; color: #e2e8f0; border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow: auto; max-height: 380px; font-size: .83rem; }
   #copyStatus { display: block; }
-  nav { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 14px; font-size: .9rem; }
-  nav a { color: var(--green); }
-  nav span { color: var(--muted); }
-  .sweep { margin: 14px 0; }
-  .table-wrap { overflow-x: auto; margin-top: 10px; }
-  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-  th, td { border: 1px solid var(--border); padding: 6px 9px; text-align: left; white-space: nowrap; }
-  th { background: #e7eddb; }
-  tr.current td { background: var(--lime); font-weight: 700; }
-  .bad { color: var(--orange); font-weight: 700; }
   @media (max-width: 760px) {
     .hero, .layout, .bottom { grid-template-columns: 1fr; }
-    .hero { gap: 18px; }
+    main { padding: 10px; }
+    h1 { font-size: 25px; }
+    section, aside { padding: 14px; }
     canvas { height: 178px; }
+    th, td { padding: 7px; font-size: 13px; }
   }
 </style>
 </head>
@@ -103,12 +88,10 @@
     <strong aria-current="page">P3 Digital PID</strong>
   </nav>
   <header>
-    <div class="masthead"><span>ENCS4380 / CONTROL</span><span>MICROMOUSE</span></div>
     <div class="hero">
       <div>
-        <p class="tag">P3 / Digital PID</p>
-        <h1>Wheel Speed<br>Control</h1>
-        <p>Explore how often a Micromouse controller would read wheel speed and update its motor command.</p>
+        <h1>P3: Digital PID</h1>
+        <p>Explore how often a Micromouse controller reads wheel speed and updates its motor command. The loop runs in discrete steps of length Tₛ, and each command is held until the next sample.</p>
       </div>
       <figure class="timing">
         <h2>When the controller samples</h2>
@@ -147,9 +130,9 @@
           </div>
         </div>
         <div class="legend">
-          <span style="--line:#17644f">Simulated speed</span>
-          <span class="dashed" style="--line:#68716b">Setpoint</span>
-          <span class="dashed" style="--line:#b44e20">Speed at Tₛ = 0.05 s</span>
+          <span style="--line:#38bdf8">Simulated speed</span>
+          <span class="dashed" style="--line:#94a3b8">Setpoint</span>
+          <span class="dashed" style="--line:#facc15">Speed at Tₛ = 0.05 s</span>
         </div>
         <canvas id="response" role="img" aria-label="Output, setpoint and fast-sampling reference over time"></canvas>
         <div class="metrics">
@@ -161,8 +144,8 @@
       <section aria-labelledby="command-heading">
         <h2 id="command-heading">Motor command</h2>
         <div class="legend">
-          <span style="--line:#17644f">Held command u</span>
-          <span class="dashed" style="--line:#92511f">Command limits</span>
+          <span style="--line:#fb923c">Held command u</span>
+          <span class="dashed" style="--line:#fda4af">Command limits</span>
         </div>
         <canvas id="command" role="img" aria-label="Stair-step control command and saturation limits over time"></canvas>
         <small id="sampling"></small>
@@ -174,8 +157,8 @@
     <h2 id="sweep-heading">How performance falls as Tₛ grows</h2>
     <p class="muted">Each point is a full simulation with your current gains, limit and plant, changing only Tₛ. The dashed line marks your current Tₛ.</p>
     <div class="legend">
-      <span style="--line:#17644f">Overshoot</span>
-      <span class="dashed" style="--line:#b44e20">Current Tₛ</span>
+      <span style="--line:#38bdf8">Overshoot</span>
+      <span class="dashed" style="--line:#facc15">Current Tₛ</span>
     </div>
     <canvas id="sweepChart" role="img" aria-label="Overshoot versus sampling time"></canvas>
     <div class="table-wrap">
@@ -308,8 +291,8 @@ function drawTiming(ts) {
   const windowSeconds = 2.5;
   const at = (time) => left + (right - left) * time / windowSeconds;
   const rows = [
-    { label: "Current interval", interval: ts, color: "#dbf389" },
-    { label: "Fast reference", interval: 0.05, color: "#a4c8b7" }
+    { label: "Current interval", interval: ts, color: "#38bdf8" },
+    { label: "Fast reference", interval: 0.05, color: "#94a3b8" }
   ];
   ctx.font = "11px ui-monospace, monospace";
   for (const [index, row] of rows.entries()) {
@@ -321,7 +304,7 @@ function drawTiming(ts) {
       ctx.fillRect(at(tick * row.interval), baseline - 12, 1.5, 12);
     }
   }
-  ctx.fillStyle = "#dbe6d9";
+  ctx.fillStyle = "#cbd5e1";
   ctx.fillText("0 s", left, h - 10);
   ctx.textAlign = "right";
   ctx.fillText("2.5 s", right, h - 10);
@@ -336,8 +319,8 @@ function draw(id, duration, yMax, series, xLabel = "Time (s)") {
   const x = (t) => left + t / duration * (right - left);
   const y = (value) => bottom - (value - yMin) / (yTop - yMin) * (bottom - top);
   ctx.font = "11px system-ui";
-  ctx.fillStyle = "#52625b";
-  ctx.strokeStyle = "#e6e1d4";
+  ctx.fillStyle = "#cbd5e1";
+  ctx.strokeStyle = "#334155";
   ctx.lineWidth = 1;
 
   for (let i = 0; i <= 4; i++) {
@@ -407,8 +390,8 @@ function drawSweep(s, duration) {
   const chartRows = rows.filter((r) => sweepTimes.includes(r.ts));
   const top = Math.max(10, Math.ceil(Math.max(...chartRows.map((r) => r.overshoot)) / 10) * 10);
   draw("sweepChart", 2, top, [
-    { points: [[s.ts, 0], [s.ts, top]], color: "#b44e20", dashed: true },
-    { points: chartRows.map((r) => [r.ts, r.overshoot]), color: "#17644f" }
+    { points: [[s.ts, 0], [s.ts, top]], color: "#facc15", dashed: true },
+    { points: chartRows.map((r) => [r.ts, r.overshoot]), color: "#38bdf8" }
   ], "Sampling time Tₛ (s)");
 
   const shown = rows.filter((r) => tableTimes.includes(r.ts) || r.ts === s.ts);
@@ -503,14 +486,14 @@ function render() {
   }
   const flatLine = (value, color) => ({ points: [[0, value], [plotWindow, value]], color, dashed: true });
   draw("response", plotWindow, responseMax, [
-    flatLine(1, "#68716b"),
-    { points: reference.output, color: "#b44e20", dashed: true },
-    { points: current.output, color: "#17644f" }
+    flatLine(1, "#94a3b8"),
+    { points: reference.output, color: "#facc15", dashed: true },
+    { points: current.output, color: "#38bdf8" }
   ]);
   draw("command", plotWindow, s.limit, [
-    { points: current.command, color: "#17644f" },
-    flatLine(0, "#92511f"),
-    flatLine(s.limit, "#92511f")
+    { points: current.command, color: "#fb923c" },
+    flatLine(0, "#fda4af"),
+    flatLine(s.limit, "#fda4af")
   ]);
   metrics(current.output, duration);
   drawSweep(s, duration);

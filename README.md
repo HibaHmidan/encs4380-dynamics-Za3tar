@@ -75,7 +75,7 @@ Nothing to install. Open the live link above, or open `index.html` in any browse
 |--------|-------|-------|--------|
 | P1. PID playground (+ validation checks) | Hiba Hmidan | 1230454 | Done |
 | P2. A slow sensor in the loop | Hiba Hmidan | 1230454 | Done |
-| P3. Digital PID | <owner> | #<n> | In progress |
+| [P3. Digital PID](P3.html) | Hala Suboh | #7 | Published (reference model) |
 | P4. Tuning challenge | <owner> | #<n> | In progress |
 | My system (Micromouse drive motor) | <owner> | #<n> | In progress |
 

@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HW2 Bonus · State-Space Pole Placement</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f172a; --card: #1e293b; --line: #475569;
+    --cyan: #38bdf8; --violet: #c084fc; --text: #f8fafc; --muted: #cbd5e1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 system-ui,sans-serif; }
+  main { max-width: 1040px; margin: auto; padding: clamp(12px,4vw,34px); }
+  nav { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 18px; }
+  nav span { opacity: .65; }
+  a { color: #7dd3fc; text-underline-offset: 3px; }
+  h1,h2 { color: var(--cyan); margin: 0 0 10px; line-height: 1.15; }
+  h1 { font-size: clamp(28px,5vw,45px); }
+  h2 { font-size: 1.15rem; }
+  p { margin: 0 0 10px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: clamp(13px,2.6vw,23px); margin: 15px 0; min-width: 0; }
+  .predict { border-color: #6366f1; background: #1e1b4b; }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,235px),1fr)); gap: 12px 22px; }
+  label { display: block; }
+  fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+  legend { padding: 0; margin-bottom: 4px; }
+  fieldset label { display: inline-block; margin-right: 18px; }
+  input[type=range] { display: block; width: 100%; min-height: 25px; margin: 2px 0; accent-color: var(--cyan); }
+  input[type=radio], input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--cyan); vertical-align: middle; }
+  select { font: inherit; background: var(--bg); color: var(--text); border: 1px solid #94a3b8; border-radius: 6px; padding: 7px 10px; max-width: 100%; }
+  output, code, dd { font-family: ui-monospace,Consolas,monospace; }
+  output { color: var(--cyan); font-weight: bold; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button { font: inherit; border: 1px solid #60a5fa; color: var(--text); background: #075985; border-radius: 6px; padding: 7px 10px; cursor: pointer; }
+  button:hover { background: #0369a1; }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  .readout { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,150px),1fr)); gap: 9px; margin: 14px 0 0; }
+  .readout div { border-top: 1px solid var(--line); padding-top: 6px; }
+  dt, .note { font-size: .86rem; color: var(--muted); }
+  dd { margin: 0; }
+  .legend { font-size: .87rem; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .legend b:first-child { color: var(--cyan); }
+  .legend b:last-child { color: var(--violet); }
+  canvas { display: block; width: 100%; height: 260px; }
+  .formula { display: block; overflow-wrap: anywhere; padding: 4px 0; }
+  .table-wrapper { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #64748b; padding: 8px 9px; text-align: left; }
+  th { color: #7dd3fc; background: var(--bg); }
+  .pass { color: #86efac; font-weight: bold; }
+  .fail { color: #fda4af; font-weight: bold; }
+  [hidden] { display: none !important; }
+  @media (max-width: 600px) { th, td { padding: 7px; font-size: 13px; } }
+</style>
+</head>
+<body>
+<main>
+  <nav aria-label="Modules">
+    <a href="index.html">Homework 1</a>
+    <span aria-hidden="true">| Control:</span>
+    <a href="P1.html">P1 PID playground</a>
+    <a href="P2.html">P2 Slow sensor</a>
+    <a href="P3.html">P3 Digital PID</a>
+    <a href="my-system.html">My system</a>
+    <strong aria-current="page">Bonus: state space</strong>
+  </nav>
+  <h1>State-Space Pole Placement</h1>
+  <p>HW2 bonus. Choose the closed-loop poles and see how state feedback brings the <a href="Module3.html">Module 3</a> mass back to equilibrium after an initial displacement, and what it costs in force.</p>
+
+  <section class="predict" aria-labelledby="predict-title">
+    <h2 id="predict-title">Predict, then check</h2>
+    <p>For the Module 3 reference plant with no force limit, move both poles from −3 and −4 to −8 and −8. What happens?</p>
+    <select id="guess" aria-label="Your prediction">
+      <option value="">Choose…</option>
+      <option value="same">Faster, with about the same force</option>
+      <option value="more">Faster, but it needs a much larger force</option>
+      <option value="slower">Slower, because the gains are larger</option>
+    </select>
+    <button id="checkGuess" type="button">Check</button>
+    <p id="feedback" aria-live="polite"></p>
+  </section>
+
+  <section aria-labelledby="design">
+    <h2 id="design">Choose the closed-loop poles</h2>
+    <p class="note">Plant: <code>m·x″ + b·x′ + k·x = u</code>. The sliders start at the Module 3 reference values (m = 1 kg, b = 2 N·s/m, k = 4 N/m). Set them to match your Module 3 page. Then give two real poles, or a damping ratio ζ and natural frequency ωn (ζ &lt; 1 gives a complex pair).</p>
+    <div class="controls" style="margin-bottom:12px">
+      <label for="m">Mass m <output id="mValue" for="m"></output>
+        <input id="m" type="range" min="0.2" max="5" step="0.1" value="1"></label>
+      <label for="b">Damping b <output id="bValue" for="b"></output>
+        <input id="b" type="range" min="0" max="6" step="0.1" value="2"></label>
+      <label for="k">Spring k <output id="kValue" for="k"></output>
+        <input id="k" type="range" min="0.5" max="20" step="0.1" value="4"></label>
+    </div>
+    <fieldset>
+      <legend>Pole specification</legend>
+      <label><input type="radio" name="mode" value="real" checked> Two real poles</label>
+      <label><input type="radio" name="mode" value="complex"> Damping ratio ζ and ωn</label>
+    </fieldset>
+    <div class="controls" id="realControls">
+      <label for="first">Desired pole 1 <output id="firstValue" for="first"></output>
+        <input id="first" type="range" min="0.5" max="8" step="0.1" value="3"></label>
+      <label for="second">Desired pole 2 <output id="secondValue" for="second"></output>
+        <input id="second" type="range" min="0.5" max="8" step="0.1" value="4"></label>
+    </div>
+    <div class="controls" id="complexControls" hidden>
+      <label for="zeta">Damping ratio ζ <output id="zetaValue" for="zeta"></output>
+        <input id="zeta" type="range" min="0.2" max="1.5" step="0.05" value="0.7"></label>
+      <label for="wn">Natural frequency ωn <output id="wnValue" for="wn"></output>
+        <input id="wn" type="range" min="0.5" max="10" step="0.1" value="4"></label>
+    </div>
+    <div class="controls" style="margin-top:12px">
+      <label><input id="limitOn" type="checkbox"> Limit the force u</label>
+      <label for="uMax">Limit: |u| ≤ <output id="uMaxValue" for="uMax"></output>
+        <input id="uMax" type="range" min="5" max="100" step="1" value="20"></label>
+    </div>
+    <div class="buttons">
+      <button id="reset" type="button">Reset to −3 and −4</button>
+      <button id="slow" type="button">Try −0.5 and −1</button>
+      <button id="damped" type="button">Try ζ = 0.7, ωn = 4</button>
+      <button id="resetPlant" type="button">Reset plant to Module 3 values</button>
+    </div>
+    <dl class="readout">
+      <div><dt>Open-loop poles (s⁻¹)</dt><dd id="openPoles"></dd></div>
+      <div><dt>Closed-loop poles from the gains (s⁻¹)</dt><dd id="poles"></dd></div>
+      <div><dt>Closed-loop ζ and ωn</dt><dd id="zw"></dd></div>
+      <div><dt>Position gain Kx (N/m)</dt><dd id="kx"></dd></div>
+      <div><dt>Velocity gain Kv (N·s/m)</dt><dd id="kv"></dd></div>
+      <div><dt>Peak force |u| (N)</dt><dd id="peakU"></dd></div>
+    </dl>
+    <p id="insight" class="note" style="margin-top:12px" aria-live="polite"></p>
+  </section>
+
+  <section aria-labelledby="response-title">
+    <h2 id="response-title">Return to equilibrium</h2>
+    <p class="note">Initial displacement is 1 m, initial velocity is zero and there is no external force.</p>
+    <p class="legend"><b>━ Open loop</b><b>━ State feedback</b></p>
+    <canvas id="response" role="img" aria-label="Open-loop and controlled displacement in metres over time"></canvas>
+    <dl class="readout">
+      <div><dt>Open-loop settling (±0.02 m)</dt><dd id="openSettling"></dd></div>
+      <div><dt>Controlled settling (±0.02 m)</dt><dd id="closedSettling"></dd></div>
+    </dl>
+  </section>
+
+  <section aria-labelledby="checks-title">
+    <h2 id="checks-title">Validation checks</h2>
+    <p class="note">Both checks compare the page against a second, independent calculation. They apply when the force is not limited.</p>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Check</th><th>Expected</th><th>Calculated</th><th>Result</th></tr></thead>
+        <tbody id="checkRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="math">
+    <h2 id="math">How the gains are calculated</h2>
+    <p>Let x be displacement and v its rate of change. The plant obeys <code>m·x″ + b·x′ + k·x = u</code>.</p>
+    <p>Use state feedback <code>u = −Kx·x − Kv·v</code>. The resulting characteristic polynomial is <code class="formula">s² + (b + Kv)/m · s + (k + Kx)/m</code>.</p>
+    <p>For two real poles <code>−a₁</code> and <code>−a₂</code>, the desired polynomial is <code>(s + a₁)(s + a₂)</code>. Matching the two coefficients gives:</p>
+    <code class="formula">Kx = m·a₁·a₂ − k</code>
+    <code class="formula">Kv = m·(a₁ + a₂) − b</code>
+    <p>For a damping ratio and natural frequency, the desired polynomial is <code>s² + 2ζωn·s + ωn²</code>, so:</p>
+    <code class="formula">Kx = m·ωn² − k</code>
+    <code class="formula">Kv = 2·m·ζ·ωn − b</code>
+    <p class="note">A negative gain means the controller removes part of the plant's own spring or damping. The curves use RK4 with a 0.01 s step, with ideal state measurements. The force is unlimited unless you switch the limit on, which makes the loop nonlinear.</p>
+  </section>
+  <noscript>Enable JavaScript to run the simulation.</noscript>
+</main>
+<script>
+"use strict";
+const byId = (id) => document.getElementById(id);
+const num = (id) => byId(id).valueAsNumber;
+const plant = { m: 1, b: 2, k: 4 };   // updated from the sliders in render()
+const MODULE3 = { m: 1, b: 2, k: 4 };
+const step = 0.01;
+const duration = 16;
+const colors = { open: "#38bdf8", closed: "#c084fc" };
+
+// ---------------- Design ----------------
+// Returns the gains and the desired poles specified directly by the user.
+function currentDesign() {
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+  if (mode === "real") {
+    const a1 = num("first"), a2 = num("second");
+    return { mode, kx: plant.m * a1 * a2 - plant.k, kv: plant.m * (a1 + a2) - plant.b,
+             target: { type: "real", a1, a2 } };
+  }
+  const zeta = num("zeta"), wn = num("wn");
+  const design = { mode, kx: plant.m * wn * wn - plant.k, kv: 2 * plant.m * zeta * wn - plant.b };
+  if (zeta < 1) design.target = { type: "complex", sigma: zeta * wn, wd: wn * Math.sqrt(1 - zeta * zeta) };
+  else {
+    const r = Math.sqrt(zeta * zeta - 1);
+    design.target = { type: "real", a1: wn * (zeta - r), a2: wn * (zeta + r) };
+  }
+  return design;
+}
+
+// Roots of s² + B·s + C as [real, imaginary] pairs.
+function roots(B, C) {
+  const disc = B * B - 4 * C;
+  const tolerance = 1e-10 * Math.max(1, B * B, 4 * Math.abs(C));
+  if (Math.abs(disc) <= tolerance) return [[-B / 2, 0], [-B / 2, 0]];
+  if (disc > 0) {
+    const r = Math.sqrt(disc);
+    return [[(-B + r) / 2, 0], [(-B - r) / 2, 0]];
+  }
+  const w = Math.sqrt(-disc) / 2;
+  return [[-B / 2, w], [-B / 2, -w]];
+}
+
+function desiredRoots(t) {
+  if (t.type === "complex") return [[-t.sigma, t.wd], [-t.sigma, -t.wd]];
+  return [-t.a1, -t.a2].sort((p, q) => q - p).map((r) => [r, 0]);
+}
+
+function rootsText(list) {
+  const [p, q] = list;
+  if (p[1] === 0) return p[0].toFixed(2) + ", " + q[0].toFixed(2);
+  return p[0].toFixed(2) + " ± j" + Math.abs(p[1]).toFixed(2);
+}
+
+// Recompute state feedback at each RK4 stage.
+function simulate({ kx, kv }, uMax, model = plant) {
+  const force = (x, v) => Math.min(uMax, Math.max(-uMax, -kx * x - kv * v));
+  const acc = (x, v) => (-model.k * x - model.b * v + force(x, v)) / model.m;
+  let x = 1, v = 0;
+  const response = [x], effort = [force(x, v)];
+  for (let i = 0; i < duration / step; i++) {
+    const a1 = acc(x, v);
+    const v2 = v + step * a1 / 2;
+    const a2 = acc(x + step * v / 2, v2);
+    const v3 = v + step * a2 / 2;
+    const a3 = acc(x + step * v2 / 2, v3);
+    const v4 = v + step * a3;
+    const a4 = acc(x + step * v3, v4);
+    x += step * (v + 2 * v2 + 2 * v3 + v4) / 6;
+    v += step * (a1 + 2 * a2 + 2 * a3 + a4) / 6;
+    response.push(x);
+    effort.push(force(x, v));
+  }
+  return { x: response, u: effort };
+}
+
+// Settling time in seconds, or null when the response is still outside the band at the end.
+function settling(samples) {
+  let last = -1;
+  for (let i = 0; i < samples.length; i++) if (Math.abs(samples[i]) > 0.02) last = i;
+  return last === samples.length - 1 ? null : (last + 1) * step;
+}
+const settleText = (s) => s === null ? "> " + duration + " s" : s.toFixed(2) + " s";
+
+// Closed form for x(0) = 1, v(0) = 0 (used only to check the solver).
+function analytic(t, target) {
+  if (target.type === "complex") {
+    return Math.exp(-target.sigma * t) * (Math.cos(target.wd * t) + target.sigma / target.wd * Math.sin(target.wd * t));
+  }
+  const { a1, a2 } = target;
+  if (Math.abs(a1 - a2) < 1e-6) return (1 + a1 * t) * Math.exp(-a1 * t);
+  return (a2 * Math.exp(-a1 * t) - a1 * Math.exp(-a2 * t)) / (a2 - a1);
+}
+
+// ---------------- Plot ----------------
+function draw(series) {
+  const canvas = byId("response");
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = w * ratio;
+  canvas.height = h * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ratio, ratio);
+  const lowest = Math.min(...series.map(([s]) => Math.min(...s)));
+  const lo = Math.min(-0.2, Math.floor(lowest * 10) / 10 - 0.05), hi = 1.1;
+  const left = 43, right = w - 14, top = 12, bottom = h - 40;
+  const mapT = (t) => left + t / duration * (right - left);
+  const mapX = (x) => bottom - (x - lo) / (hi - lo) * (bottom - top);
+  ctx.fillStyle = "#cbd5e1";
+  ctx.font = "11px system-ui";
+  ctx.lineWidth = 1;
+  for (let value = Math.ceil(lo / 0.25) * 0.25; value <= 1.0001; value += 0.25) {
+    ctx.strokeStyle = Math.abs(value) < 1e-9 ? "#64748b" : "#334155";
+    ctx.beginPath();
+    ctx.moveTo(left, mapX(value));
+    ctx.lineTo(right, mapX(value));
+    ctx.stroke();
+    ctx.textAlign = "right";
+    ctx.fillText(String(Number(value.toFixed(2))), left - 5, mapX(value) + 4);
+  }
+  for (const time of [0, 4, 8, 12, 16]) {
+    ctx.strokeStyle = "#334155";
+    ctx.beginPath();
+    ctx.moveTo(mapT(time), top);
+    ctx.lineTo(mapT(time), bottom);
+    ctx.stroke();
+    ctx.textAlign = "center";
+    ctx.fillText(String(time), mapT(time), bottom + 15);
+  }
+  ctx.fillText("Time (s)", (left + right) / 2, h - 8);
+  ctx.textAlign = "left";
+  ctx.fillText("x (m)", 4, 14);
+  for (const [samples, color] of series) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(mapT(0), mapX(samples[0]));
+    for (let i = 1; i < samples.length; i++) ctx.lineTo(mapT(i * step), mapX(samples[i]));
+    ctx.stroke();
+  }
+}
+
+// ---------------- Page ----------------
+function checkRow(name, expected, calculated, pass) {
+  const result = pass === null ? '<td>Skipped</td>' : '<td class="' + (pass ? "pass" : "fail") + '">' + (pass ? "PASS" : "FAIL") + "</td>";
+  return "<tr><td>" + name + "</td><td>" + expected + "</td><td>" + calculated + "</td>" + result + "</tr>";
+}
+
+function render() {
+  plant.m = num("m"); plant.b = num("b"); plant.k = num("k");
+  byId("mValue").textContent = plant.m.toFixed(1) + " kg";
+  byId("bValue").textContent = plant.b.toFixed(1) + " N·s/m";
+  byId("kValue").textContent = plant.k.toFixed(1) + " N/m";
+  byId("openPoles").textContent = rootsText(roots(plant.b / plant.m, plant.k / plant.m)) +
+    (plant.b * plant.b < 4 * plant.k * plant.m ? " (complex)" : "");
+  const openLoop = simulate({ kx: 0, kv: 0 }, Infinity);
+  const openSettle = settling(openLoop.x);
+  byId("openSettling").textContent = settleText(openSettle);
+  const d = currentDesign();
+  const isReal = d.mode === "real";
+  byId("realControls").hidden = !isReal;
+  byId("complexControls").hidden = isReal;
+  byId("firstValue").textContent = "−" + num("first").toFixed(1) + " s⁻¹";
+  byId("secondValue").textContent = "−" + num("second").toFixed(1) + " s⁻¹";
+  byId("zetaValue").textContent = num("zeta").toFixed(2);
+  byId("wnValue").textContent = num("wn").toFixed(1) + " rad/s";
+  const limited = byId("limitOn").checked;
+  const uMax = limited ? num("uMax") : Infinity;
+  byId("uMax").disabled = !limited;
+  byId("uMaxValue").textContent = num("uMax") + " N";
+
+  const B = (plant.b + d.kv) / plant.m, C = (plant.k + d.kx) / plant.m;
+  const poles = roots(B, C);
+  byId("poles").textContent = rootsText(poles);
+  byId("zw").textContent = C > 0 ? (B / (2 * Math.sqrt(C))).toFixed(2) + ", " + Math.sqrt(C).toFixed(2) + " rad/s" : "unstable";
+  byId("kx").textContent = d.kx.toFixed(2);
+  byId("kv").textContent = d.kv.toFixed(2);
+
+  const run = simulate(d, uMax);
+  const settle = settling(run.x);
+  const peakU = Math.max(...run.u.map(Math.abs));
+  byId("peakU").textContent = peakU.toFixed(1);
+  byId("closedSettling").textContent = settleText(settle);
+
+  let message;
+  if (limited && peakU >= uMax - 1e-6) {
+    message = "The force reached its limit. During saturation the linear pole locations alone cannot predict the response.";
+  } else if (d.kx < 0 || d.kv < 0) {
+    message = "A negative gain means the controller removes part of the plant's own spring (Kx < 0) or damping (Kv < 0).";
+    if (openSettle !== null && (settle === null || settle > openSettle)) message += " These poles are slower than the open loop, so the controller makes the response worse.";
+  } else {
+    message = "Compare settling time and peak force as you change the desired poles.";
+  }
+  byId("insight").textContent = message;
+
+  draw([[openLoop.x, colors.open], [run.x, colors.closed]]);
+
+  // Validation: two independent paths
+  if (limited) {
+    byId("checkRows").innerHTML = checkRow("Closed-loop poles from the gains", "the poles you chose", "force limit on", null) +
+      checkRow("Simulated x(t) against the closed form", "same curve", "force limit on", null);
+  } else {
+    const want = desiredRoots(d.target);
+    const have = poles.slice().sort((p, q) => q[0] - p[0] || q[1] - p[1]);
+    const wantSorted = want.slice().sort((p, q) => q[0] - p[0] || q[1] - p[1]);
+    const poleError = Math.max(...have.map((p, i) => Math.hypot(p[0] - wantSorted[i][0], p[1] - wantSorted[i][1])));
+    let curveError = 0;
+    for (let i = 0; i < run.x.length; i++) curveError = Math.max(curveError, Math.abs(run.x[i] - analytic(i * step, d.target)));
+    byId("checkRows").innerHTML =
+      checkRow("Closed-loop poles from the gains", "the poles you chose", "max difference " + poleError.toExponential(1), poleError < 1e-9) +
+      checkRow("Simulated x(t) against the closed form", "max difference < 1e-5 m", "max difference " + curveError.toExponential(1) + " m", curveError < 1e-5);
+  }
+}
+
+function setReal(first, second) {
+  document.querySelector('input[name="mode"][value="real"]').checked = true;
+  byId("first").value = first;
+  byId("second").value = second;
+  render();
+}
+
+byId("checkGuess").addEventListener("click", () => {
+  const a = byId("guess").value;
+  if (!a) { byId("feedback").textContent = "Choose an answer first."; return; }
+  const gains = (a1, a2) => ({ kx: MODULE3.m * a1 * a2 - MODULE3.k, kv: MODULE3.m * (a1 + a2) - MODULE3.b });
+  const slowRun = simulate(gains(3, 4), Infinity, MODULE3);
+  const fastRun = simulate(gains(8, 8), Infinity, MODULE3);
+  const peak = (r) => Math.max(...r.u.map(Math.abs));
+  byId("feedback").textContent = (a === "more" ? "Correct. " : "Not quite. ") +
+    "For the reference plant, poles at −8 and −8 settle in " + settleText(settling(fastRun.x)) + " instead of " +
+    settleText(settling(slowRun.x)) + ", and the peak force is " + peak(fastRun).toFixed(0) + " N instead of " +
+    peak(slowRun).toFixed(0) + " N. Faster poles cost much more force. Switch on the force limit to see what " +
+    "happens when the actuator cannot deliver it.";
+});
+byId("reset").addEventListener("click", () => setReal(3, 4));
+byId("resetPlant").addEventListener("click", () => {
+  byId("m").value = MODULE3.m; byId("b").value = MODULE3.b; byId("k").value = MODULE3.k;
+  render();
+});
+byId("slow").addEventListener("click", () => setReal(0.5, 1));
+byId("damped").addEventListener("click", () => {
+  document.querySelector('input[name="mode"][value="complex"]').checked = true;
+  byId("zeta").value = 0.7;
+  byId("wn").value = 4;
+  render();
+});
+document.querySelectorAll("input[type=range], input[type=radio], input[type=checkbox]").forEach((el) => el.addEventListener("input", render));
+document.querySelectorAll("input[type=radio]").forEach((el) => el.addEventListener("change", render));
+window.addEventListener("resize", render);
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My System: Micromouse Wheel Speed</title>
+<style>
+  :root { color-scheme: dark; --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc;
+          --muted: #cbd5e1; --border: #475569; --mono: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  * { box-sizing: border-box; }
+  body { margin: 0 auto; padding: 18px; max-width: 1080px; background: var(--bg); color: var(--text);
+         font: 16px/1.6 system-ui, -apple-system, Arial, sans-serif; }
+  nav { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  nav span { opacity: .65; }
+  a { color: #7dd3fc; }
+  h1, h2 { color: var(--accent); line-height: 1.3; }
+  h2 { margin: 0 0 10px; }
+  p { margin: 0 0 12px; }
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin: 18px 0; min-width: 0; }
+  .note, .legend { color: var(--muted); }
+  .warn { border-left: 4px solid #fb923c; padding-left: 12px; color: var(--muted); }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 18px; }
+  .pair section { margin: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 4px 24px; }
+  .control { margin: 12px 0; }
+  .control label { display: block; margin-bottom: 4px; }
+  input[type="range"] { display: block; width: 100%; accent-color: var(--accent); }
+  output { font: 700 .85rem var(--mono); color: var(--accent); }
+  button { font: inherit; padding: 9px 12px; border-radius: 7px; background: #075985; color: #fff; border: 1px solid var(--accent); cursor: pointer; }
+  button:hover { background: #0369a1; }
+  :focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+  canvas { display: block; width: 100%; height: 250px; }
+  .legend { font-size: .85rem; margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .legend span::before { content: ""; display: inline-block; width: 16px; margin-right: 5px; vertical-align: middle; border-top: 3px solid var(--line); }
+  .legend .dashed::before { border-top-style: dashed; }
+  .table-wrapper { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #64748b; padding: 8px 9px; text-align: left; }
+  th { color: #7dd3fc; background: var(--bg); }
+  .pass { color: #86efac; font-weight: bold; }
+  .fail { color: #fda4af; font-weight: bold; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 12px 0 0; }
+  .metrics div { border-top: 1px solid var(--border); padding-top: 8px; }
+  dt { font-size: .8rem; color: var(--muted); }
+  dd { margin: 0; font: 700 1.15rem var(--mono); }
+  pre { background: #0b1220; color: #e2e8f0; border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow: auto; max-height: 420px; font-size: .85rem; }
+  code { font-family: var(--mono); }
+  .code-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .code-head h2 { margin: 0; }
+  [hidden] { display: none !important; }
+  header { margin: 14px 0; background: var(--card); border: 1px solid var(--border); color: var(--text);
+           padding: clamp(20px, 5vw, 48px); border-radius: 12px; }
+  header p { max-width: 63ch; margin: 0; }
+  header .eyebrow { font: 700 .8rem ui-monospace, monospace; color: var(--accent); margin: 0; }
+  h1 { font-size: clamp(32px, 6vw, 62px); line-height: 1.03; letter-spacing: -.055em; margin: 4px 0 14px; }
+  @media (max-width: 600px) {
+    body { padding: 10px; } section { padding: 14px; }
+    canvas { height: 205px; } th, td { padding: 7px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+  <nav aria-label="Modules">
+    <a href="index.html">Homework 1</a>
+    <span aria-hidden="true">| Control:</span>
+    <a href="P1.html">P1 PID playground</a>
+    <a href="P2.html">P2 Slow sensor</a>
+    <a href="P3.html">P3 Digital PID</a>
+    <strong aria-current="page">My system</strong>
+  </nav>
+
+  <header>
+    <p class="eyebrow">ENCS4380 / MICROMOUSE</p>
+    <h1>My System<br>Wheel Speed Control</h1>
+    <p>The goal is to make one Micromouse wheel reach and hold a target speed. The encoder measures the wheel speed,
+       and the controller adjusts the motor PWM duty cycle every sample. The loop is simulated live with our own solver
+       (Euler steps, the same digital PI loop as the Arduino code below).</p>
+  </header>
+
+  <div class="pair">
+    <section>
+      <h2>1. Plant model and its source</h2>
+      <p>Drive motor, duty cycle to normalized wheel speed: <code>G(s) = K / (τs + 1)</code></p>
+      <p><strong>Current values: K = <span id="kText"></span>, τ = <span id="tauText"></span> s.</strong></p>
+      <p class="warn" id="sourceNote"></p>
+      <p class="note">Apply a PWM step between two fixed duty levels and log encoder speed. Use steady speeds
+         <var>y</var><sub>0</sub> before the step and <var>y</var><sub>1</sub> after it, and express duty as a fraction from 0 to 1.
+         Compute <strong>K = (y₁ − y₀) / (d₁ − d₀)</strong>. Read <strong>τ</strong> as the time from the PWM step until
+         the speed first reaches <strong>y₀ + 0.632(y₁ − y₀)</strong>. Enter the measured values below using normalized speed.</p>
+    </section>
+    <section>
+      <h2>2. Spec and why it matters</h2>
+      <p>The wheel must reach a speed command of <strong id="targetText"></strong> (normalized) quickly,
+         without overshooting, and then hold it. Each wheel has to track its command so the robot drives a predictable path through the maze.</p>
+      <p class="note">The numbers in the spec table are checked live against the simulation. They were set while the motor is still a
+         placeholder, so revisit them after the real measurement.</p>
+    </section>
+  </div>
+
+  <section>
+    <h2>3. Plant and controller</h2>
+    <div class="grid">
+      <div>
+        <div class="control"><label for="K">Plant gain K = <output id="KValue"></output></label>
+          <input id="K" type="range" min="0.1" max="3" step="0.01" value="1"></div>
+        <div class="control"><label for="tau">Time constant τ = <output id="tauValue"></output> s</label>
+          <input id="tau" type="range" min="0.02" max="3" step="0.01" value="1"></div>
+        <div class="control"><label for="target">Target speed = <output id="targetValue"></output></label>
+          <input id="target" type="range" min="0.1" max="1" step="0.05" value="0.5"></div>
+      </div>
+      <div>
+        <div class="control"><label for="Kp">Kp = <output id="KpValue"></output></label>
+          <input id="Kp" type="range" min="0" max="3" step="0.05" value="0.4"></div>
+        <div class="control"><label for="Ki">Ki = <output id="KiValue"></output> 1/s</label>
+          <input id="Ki" type="range" min="0" max="5" step="0.05" value="1"></div>
+        <div class="control"><label for="Ts">Sampling time Tₛ = <output id="TsValue"></output> s</label>
+          <input id="Ts" type="range" min="0.01" max="0.5" step="0.01" value="0.05"></div>
+      </div>
+    </div>
+    <p class="note">PI design, Kd = 0. For the continuous model:
+       ωn = √(K·Ki/τ) = <strong id="wnText"></strong> rad/s and
+       ζ = (1 + K·Kp) / (2·√(τ·K·Ki)) = <strong id="zetaText"></strong>.
+       Reset to the saved design: Kp = 0.4, Ki = 1, Tₛ = 0.05 s.
+       <button id="reset" type="button">Reset design</button></p>
+  </section>
+
+  <section>
+    <h2>4. Spec check</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Requirement</th><th>Limit</th><th>Simulated</th><th>Result</th><th>Why it matters</th></tr></thead>
+        <tbody id="specRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Simulated wheel speed</h2>
+    <div class="legend">
+      <span style="--line:#c084fc">Simulated speed</span>
+      <span class="dashed" style="--line:#38bdf8">Target speed</span>
+    </div>
+    <canvas id="speed" role="img" aria-label="Normalized wheel speed versus time with the target speed"></canvas>
+    <dl class="metrics">
+      <div><dt>Peak speed</dt><dd id="peak">—</dd></div>
+      <div><dt id="finalLabel">Final speed</dt><dd id="final">—</dd></div>
+      <div><dt>Peak PWM duty</dt><dd id="duty">—</dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2>6. Motor command</h2>
+    <div class="legend">
+      <span style="--line:#38bdf8">PWM duty, held between samples</span>
+      <span class="dashed" style="--line:#c084fc">0% and 100% limits</span>
+    </div>
+    <canvas id="pwm" role="img" aria-label="PWM duty in percent versus time with the 0 and 100 percent limits"></canvas>
+  </section>
+
+  <section>
+    <div class="code-head">
+      <h2>7. Arduino controller for these gains</h2>
+      <button id="copy" type="button">Copy code</button>
+    </div>
+    <p class="note">The update runs once per sample. Integration pauses when it would push the command farther past a duty limit
+       (anti-windup). Fill in <code>readNormalizedSpeed()</code> with your encoder reading, scaled to 0–1.</p>
+    <pre tabindex="0"><code id="code"></code></pre>
+    <p id="copyStatus" class="note" role="status" aria-live="polite"></p>
+  </section>
+
+  <noscript><p class="fail">Enable JavaScript to see the simulation.</p></noscript>
+
+<script>
+"use strict";
+const byId = (id) => document.getElementById(id);
+const num = (id) => Number(byId(id).value);
+const DEFAULTS = { Kp: 0.4, Ki: 1, Ts: 0.05 };
+const PLACEHOLDER = { K: 1, tau: 1 };
+// Spec limits (checked live against the simulation).
+const SPEC = { zetaMin: 0.6, zetaMax: 0.8, overshoot: 10, settle: 6, errorPct: 1 };
+
+// ---------------- Our solver: digital PI loop + first-order motor ----------------
+// u[k] = Kp·e[k] + Ki·Ts·Σe, duty clamped to 0..1, held for the whole sample (zero-order hold).
+// The motor τ·y' + y = K·duty is stepped with Euler, 20 steps per time constant at least.
+function simulate({ K, tau, Kp, Ki, Ts, target }, duration) {
+  const n = Math.max(50, Math.ceil(20 * Ts / tau));   // plant steps per sample
+  const dt = Ts / n;
+  const speed = [[0, 0]], pwm = [];
+  let y = 0, integral = 0, rawMax = -Infinity, rawMin = Infinity;
+  for (let k = 0; k < Math.round(duration / Ts); k++) {
+    const t = k * Ts;
+    const error = target - y;
+    const proportional = Kp * error;
+    const change = Ki * Ts * error;
+    const candidate = proportional + integral + change;
+    if (!((candidate > 1 && change > 0) || (candidate < 0 && change < 0))) integral += change;   // anti-windup
+    const raw = proportional + integral;
+    rawMax = Math.max(rawMax, raw); rawMin = Math.min(rawMin, raw);
+    const duty = Math.min(1, Math.max(0, raw));
+    pwm.push([t, 100 * duty], [t + Ts, 100 * duty]);
+    for (let i = 1; i <= n; i++) {
+      y += dt * (K * duty - y) / tau;
+      speed.push([t + i * dt, y]);
+    }
+  }
+  return { speed, pwm, rawMax, rawMin };
+}
+
+function measure(run, target) {
+  let peak = 0, lastOutside = 0;
+  for (const [t, v] of run.speed) {
+    peak = Math.max(peak, v);
+    if (Math.abs(v - target) > 0.02 * target) lastOutside = t;
+  }
+  const end = run.speed.at(-1);
+  const settled = lastOutside < end[0] - 1e-9;
+  return { peak, final: end[1], overshoot: 100 * Math.max(0, peak - target) / target,
+           settle: settled ? lastOutside : null, errorPct: 100 * Math.abs(target - end[1]) / target };
+}
+
+// ---------------- Plots ----------------
+function plot(canvas, duration, max, series) {
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = width * ratio; canvas.height = height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ratio, ratio);
+  const left = 42, top = 12, right = width - 13, bottom = height - 34;
+  const x = (t) => left + t / duration * (right - left);
+  const y = (v) => bottom - v / max * (bottom - top);
+  ctx.font = "11px system-ui";
+  ctx.fillStyle = "#cbd5e1";
+  ctx.strokeStyle = "#334155";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const v = i * max / 4, t = i * duration / 4;
+    ctx.beginPath();
+    ctx.moveTo(left, y(v)); ctx.lineTo(right, y(v));
+    ctx.moveTo(x(t), top); ctx.lineTo(x(t), bottom);
+    ctx.stroke();
+    ctx.textAlign = "right"; ctx.fillText(String(Number(v.toFixed(2))), left - 5, y(v) + 4);
+    ctx.textAlign = "center"; ctx.fillText(String(Number(t.toFixed(1))), x(t), bottom + 15);
+  }
+  ctx.textAlign = "center";
+  ctx.fillText("Time (s)", (left + right) / 2, height - 4);
+  for (const s of series) {
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash(s.dashed ? [6, 4] : []);
+    ctx.beginPath();
+    ctx.moveTo(x(s.points[0][0]), y(s.points[0][1]));
+    for (const [t, v] of s.points) ctx.lineTo(x(t), y(v));
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+const flat = (v, duration) => [[0, v], [duration, v]];
+
+// ---------------- Arduino code for the current gains ----------------
+const f = (v) => { const s = String(Number(v.toPrecision(6))); return (s.includes(".") ? s : s + ".0") + "f"; };
+function arduinoCode(p) {
+  return [
+    "const float KP = " + f(p.Kp) + ";",
+    "const float KI = " + f(p.Ki) + ";",
+    "const float TS = " + f(p.Ts) + ";                 // seconds",
+    "const float TARGET = " + f(p.target) + ";         // normalized speed, 0 to 1",
+    "const unsigned long SAMPLE_US = " + Math.round(p.Ts * 1e6) + "UL;",
+    "const int PWM_PIN = 9;                // change to your motor driver pin",
+    "",
+    "float integral = 0.0f;",
+    "unsigned long lastSample = 0;",
+    "",
+    "float readNormalizedSpeed() {",
+    "  // TODO: convert encoder counts in the last sample to speed / maximum speed (0 to 1)",
+    "  return 0.0f;",
+    "}",
+    "",
+    "float updateDuty(float measuredSpeed) {",
+    "  const float error = TARGET - measuredSpeed;",
+    "  const float proportional = KP * error;",
+    "  const float change = KI * TS * error;",
+    "  const float candidate = proportional + integral + change;",
+    "",
+    "  // Anti-windup: pause integration when it pushes farther past a limit",
+    "  if (!((candidate > 1.0f && change > 0.0f) ||",
+    "        (candidate < 0.0f && change < 0.0f))) {",
+    "    integral += change;",
+    "  }",
+    "",
+    "  const float command = proportional + integral;",
+    "  if (command < 0.0f) return 0.0f;",
+    "  if (command > 1.0f) return 1.0f;",
+    "  return command;",
+    "}",
+    "",
+    "void setup() {",
+    "  pinMode(PWM_PIN, OUTPUT);",
+    "  lastSample = micros() - SAMPLE_US;",
+    "}",
+    "",
+    "void loop() {",
+    "  const unsigned long now = micros();",
+    "  if (now - lastSample < SAMPLE_US) return;",
+    "  lastSample += SAMPLE_US;",
+    "  const float duty = updateDuty(readNormalizedSpeed());",
+    "  analogWrite(PWM_PIN, (int)(255.0f * duty + 0.5f));",
+    "}"
+  ].join("\n");
+}
+
+// ---------------- Page ----------------
+function render() {
+  const p = { K: num("K"), tau: num("tau"), Kp: num("Kp"), Ki: num("Ki"), Ts: num("Ts"), target: num("target") };
+  byId("KValue").textContent = p.K.toFixed(2);
+  byId("tauValue").textContent = p.tau.toFixed(2);
+  byId("targetValue").textContent = p.target.toFixed(2);
+  byId("KpValue").textContent = p.Kp.toFixed(2);
+  byId("KiValue").textContent = p.Ki.toFixed(2);
+  byId("TsValue").textContent = p.Ts.toFixed(2);
+  byId("kText").textContent = p.K.toFixed(2);
+  byId("tauText").textContent = p.tau.toFixed(2);
+  byId("targetText").textContent = p.target.toFixed(2);
+  const placeholder = p.K === PLACEHOLDER.K && p.tau === PLACEHOLDER.tau;
+  byId("sourceNote").textContent = placeholder
+    ? "Source: placeholder from the Homework 2 validation example (K = 1, τ = 1 s). The motor has not been measured yet. Replace it with the PWM step-test result from the encoder log."
+    : "Source: values entered by the team. Cite the encoder log or datasheet they came from here before submitting.";
+
+  const wn = Math.sqrt(p.K * p.Ki / p.tau);
+  const zeta = p.Ki > 0 ? (1 + p.K * p.Kp) / (2 * Math.sqrt(p.tau * p.K * p.Ki)) : Infinity;
+  byId("wnText").textContent = p.Ki > 0 ? wn.toFixed(2) : "—";
+  byId("zetaText").textContent = Number.isFinite(zeta) ? zeta.toFixed(2) : "— (Ki = 0)";
+
+  const duration = Math.max(12, Math.ceil(12 * p.tau));
+  const run = simulate(p, duration);
+  const m = measure(run, p.target);
+
+  const speedAxisMax = Math.max(0.6, Math.ceil(12 * Math.max(p.target, m.peak)) / 10);
+  plot(byId("speed"), duration, speedAxisMax, [
+    { points: flat(p.target, duration), color: "#38bdf8", dashed: true },
+    { points: run.speed, color: "#c084fc" }
+  ]);
+  plot(byId("pwm"), duration, 100, [
+    { points: flat(100, duration), color: "#c084fc", dashed: true },
+    { points: flat(0, duration), color: "#c084fc", dashed: true },
+    { points: run.pwm, color: "#38bdf8" }
+  ]);
+  byId("peak").textContent = m.peak.toFixed(3);
+  byId("finalLabel").textContent = "Final speed at " + duration + " s";
+  byId("final").textContent = m.final.toFixed(3);
+  const peakDuty = Math.max(...run.pwm.map((q) => q[1]));
+  byId("duty").textContent = peakDuty.toFixed(1) + "%";
+
+  const rows = [
+    ["Damping ratio ζ (continuous, unsaturated)", SPEC.zetaMin + " to " + SPEC.zetaMax,
+      Number.isFinite(zeta) ? zeta.toFixed(2) : "—", Number.isFinite(zeta) && zeta >= SPEC.zetaMin && zeta <= SPEC.zetaMax,
+      "Practical range from the lecture: fast without ringing."],
+    ["Overshoot", "≤ " + SPEC.overshoot + "%", m.overshoot.toFixed(1) + "%", m.overshoot <= SPEC.overshoot,
+      "Overshooting the target speed makes the wheel surge."],
+    ["Settling time (±2%)", "≤ " + SPEC.settle + " s", m.settle === null ? "> " + duration + " s" : m.settle.toFixed(2) + " s",
+      m.settle !== null && m.settle <= SPEC.settle, "The wheel must reach its speed before the next move."],
+    ["Steady-state error", "≤ " + SPEC.errorPct + "% of target", m.errorPct.toFixed(2) + "%", m.errorPct <= SPEC.errorPct,
+      "Both wheels must hold the same speed to drive straight."],
+    ["PWM command stays in 0 to 100% (before clamping)", "0% to 100%",
+      (100 * run.rawMin).toFixed(1) + "% to " + (100 * run.rawMax).toFixed(1) + "%", run.rawMin >= 0 && run.rawMax <= 1,
+      "The motor driver cannot output more than full duty."]
+  ];
+  byId("specRows").innerHTML = rows.map((r) =>
+    "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td><td>" + r[2] + '</td><td class="' + (r[3] ? "pass" : "fail") + '">' +
+    (r[3] ? "PASS" : "FAIL") + "</td><td>" + r[4] + "</td></tr>").join("");
+
+  byId("code").textContent = arduinoCode(p);
+}
+
+byId("reset").addEventListener("click", () => {
+  for (const k in DEFAULTS) byId(k).value = DEFAULTS[k];
+  render();
+});
+byId("copy").addEventListener("click", async () => {
+  const text = byId("code").textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    byId("copyStatus").textContent = "Code copied.";
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text; document.body.appendChild(area); area.select();
+    byId("copyStatus").textContent = document.execCommand("copy") ? "Code copied." : "Copy failed. Select the code and copy it by hand.";
+    area.remove();
+  }
+});
+document.querySelectorAll("input[type=range]").forEach((el) => el.addEventListener("input", render));
+window.addEventListener("resize", render);
+render();
+</script>
+</body>
+</html>

@@ -77,7 +77,7 @@ Nothing to install. Open the live link above, or open `index.html` in any browse
 | P2. A slow sensor in the loop | Hiba Hmidan | 1230454 | Done |
 | [P3. Digital PID](P3.html) | Hala Suboh | #7 | Published (reference model) |
 | P4. Tuning challenge | <owner> | #<n> | In progress |
-| My system (Micromouse drive motor) | <owner> | #<n> | In progress |
+| [My System (Micromouse drive motor)](my-system.html) | Hala Suboh | — | Published – motor measurements pending |
 
 **Simulation:** each page runs its own solver. Every 1 ms step, the PID computes u = Kp·e + Ki·∫e dt + Kd·de/dt, then the plant moves forward with RK4. All metrics are read off the simulated curve.
 

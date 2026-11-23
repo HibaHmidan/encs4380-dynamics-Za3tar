@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P4: Tuning Challenge</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc;
+            --muted: #cbd5e1; --border: #475569; }
+    * { box-sizing: border-box; }
+    body { margin: 0 auto; padding: 18px; max-width: 1080px; background: var(--bg);
+           color: var(--text); font: 16px/1.6 system-ui, -apple-system, Arial, sans-serif; }
+    nav { display: flex; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 24px; }
+    a { color: #7dd3fc; }
+    h1, h2 { color: var(--accent); line-height: 1.3; }
+    .box { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+           padding: 20px; margin: 18px 0; min-width: 0; }
+    .box h2 { margin-top: 0; }
+    .predict { border-color: #6366f1; background: #1e1b4b; }
+    .reveal-card { border-color: #38bdf8; background: #0c4a6e; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px 24px; }
+    .control { margin: 12px 0; }
+    .control label { display: block; margin-bottom: 4px; font-weight: 500; }
+    input[type="range"] { display: block; width: 100%; accent-color: var(--accent); }
+    button, select { font: inherit; padding: 9px 14px; border-radius: 7px; }
+    button { background: #075985; color: #fff; border: 1px solid var(--accent); cursor: pointer; margin: 6px 6px 4px 0; }
+    button:hover { background: #0369a1; }
+    button.secondary { background: var(--bg); border-color: #94a3b8; }
+    button.secondary:hover { background: #1e293b; }
+    select { background: var(--bg); color: var(--text); border: 1px solid #94a3b8; max-width: 100%; }
+    button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+    .chart { position: relative; height: 340px; }
+    .chart.small { height: 230px; }
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #64748b; padding: 10px; text-align: left; }
+    th { color: #7dd3fc; background: var(--bg); }
+    .pass { color: #86efac; font-weight: bold; }
+    .fail { color: #fda4af; font-weight: bold; }
+    .score-banner { font-size: 1.25rem; font-weight: bold; padding: 12px 16px; border-radius: 8px;
+                    background: var(--bg); border: 1px solid var(--border); margin-top: 14px; }
+    .note { color: var(--muted); }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) {
+      body { padding: 10px; } h1 { font-size: 25px; } .box { padding: 14px; }
+      .chart { height: 290px; } th, td { padding: 7px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <nav aria-label="Modules">
+    <a href="index.html">Homework 1</a>
+    <span aria-hidden="true" style="opacity:.65">| Control:</span>
+    <a href="P1.html">P1 PID playground</a>
+    <a href="P2.html">P2 Slow sensor</a>
+    <a href="P3.html">P3 Digital PID</a>
+    <strong aria-current="page">P4 Tuning challenge</strong>
+    <a href="mysystem.html">My system</a>
+  </nav>
+
+  <h1>P4: Tuning challenge</h1>
+  <p>A hidden plant from Homework 1's Module 4 is inside the loop. Tune <strong>Kp</strong>, <strong>Ki</strong>, and <strong>Kd</strong> so the unit step response (r = 1) passes all three target specifications.</p>
+
+  <section class="box predict">
+    <h2>Predict, then check</h2>
+    <p>Suppose you increase <strong>Kp</strong> and <strong>Ki</strong> until the steady-state error reaches 0%, but now the curve shoots way past the target (overshoot &gt; 10%). Which gain should you increase next to calm the overshoot without bringing back steady-state error?</p>
+    <select id="guess" aria-label="Your prediction">
+      <option value="">Choose…</option>
+      <option value="kd">Increase Kd (adds damping to slow down the approach)</option>
+      <option value="ki0">Set Ki back to 0</option>
+      <option value="kp">Increase Kp even higher</option>
+    </select>
+    <button id="checkGuess" type="button">Check</button>
+    <p id="feedback" aria-live="polite"></p>
+  </section>
+
+  <section class="box">
+    <h2>Tune your PID gains</h2>
+    <p class="note">Recommended order: raise <strong>Kp</strong> for speed, add <strong>Ki</strong> to remove steady-state error, then add <strong>Kd</strong> to tame overshoot. Actuator limit: −20 ≤ u ≤ 20.</p>
+    <div class="grid">
+      <div class="control">
+        <label for="Kp">Proportional gain Kp = <span id="KpValue"></span></label>
+        <input id="Kp" type="range" min="0" max="20" step="0.1" value="1">
+      </div>
+      <div class="control">
+        <label for="Ki">Integral gain Ki = <span id="KiValue"></span> 1/s</label>
+        <input id="Ki" type="range" min="0" max="20" step="0.1" value="0">
+      </div>
+      <div class="control">
+        <label for="Kd">Derivative gain Kd = <span id="KdValue"></span> s</label>
+        <input id="Kd" type="range" min="0" max="5" step="0.05" value="0">
+      </div>
+    </div>
+    <div>
+      <button id="newPlantBtn" type="button">New random plant</button>
+      <button id="revealBtn" type="button" class="secondary">Reveal hidden plant</button>
+      <button id="resetBtn" type="button" class="secondary">Reset gains</button>
+    </div>
+    <div id="revealBox" class="box reveal-card" hidden aria-live="polite">
+      <h2 style="margin-bottom:6px;">Hidden plant parameters</h2>
+      <p id="plantRevealText" style="margin:0;"></p>
+    </div>
+  </section>
+
+  <section class="box">
+    <h2>Specification scorecard</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Requirement</th>
+            <th>Target Spec</th>
+            <th>Your Result</th>
+            <th>Points</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="specRows"></tbody>
+      </table>
+    </div>
+    <div id="scoreBanner" class="score-banner" aria-live="polite"></div>
+    <p id="metricNote" class="note"></p>
+  </section>
+
+  <section class="box">
+    <h2>Output y against setpoint r = 1</h2>
+    <div class="chart"><canvas id="outChart" role="img" aria-label="Output y and setpoint r versus time"></canvas></div>
+  </section>
+
+  <section class="box">
+    <h2>Control signal u</h2>
+    <div class="chart small"><canvas id="uChart" role="img" aria-label="Control signal u versus time"></canvas></div>
+    <p id="uInfo" class="note"></p>
+  </section>
+
+  <p id="loadError" class="fail" role="alert" hidden>The chart library could not load. Check your internet connection and reload.</p>
+
+  <script>
+  (() => {
+    'use strict';
+    const get = id => document.getElementById(id);
+    const num = id => Number(get(id).value);
+    const H = 0.001;        // 1 ms RK4 step (same solver as P1)
+    const U_MAX = 20;       // realistic actuator limit
+    const T_END = 10;       // 10 s simulation window
+    const randomBetween = (a, b) => a + Math.random() * (b - a);
+
+    let hiddenPlant = null;
+    let specs = null;
+
+    // ---------------- RK4 Closed-Loop Solver (reused from P1) ----------------
+    function slopes(p, y, v, u) {
+      if (p.order === 1) return [(p.K * u - y) / p.tau, 0];
+      return [v, p.K * p.wn * p.wn * u - 2 * p.zeta * p.wn * v - p.wn * p.wn * y];
+    }
+
+    function rk4(p, y, v, u, h) {
+      const [a1, b1] = slopes(p, y, v, u);
+      const [a2, b2] = slopes(p, y + h / 2 * a1, v + h / 2 * b1, u);
+      const [a3, b3] = slopes(p, y + h / 2 * a2, v + h / 2 * b2, u);
+      const [a4, b4] = slopes(p, y + h * a3, v + h * b3, u);
+      return [y + h / 6 * (a1 + 2 * a2 + 2 * a3 + a4),
+              v + h / 6 * (b1 + 2 * b2 + 2 * b3 + b4)];
+    }
+
+    function simulate(p, c) {
+      const N = Math.round(T_END / H);
+      let y = 0, v = 0, integral = 0, ePrev = null, u = 0;
+      const t = [], ys = [], us = [];
+      for (let i = 0; i <= N; i++) {
+        const e = 1.0 - y;
+        if (ePrev === null) ePrev = e;
+        integral += e * H;
+        u = c.Kp * e + c.Ki * integral + c.Kd * (e - ePrev) / H;
+        u = Math.min(U_MAX, Math.max(-U_MAX, u));
+        ePrev = e;
+        t.push(i * H); ys.push(y); us.push(u);
+        [y, v] = rk4(p, y, v, u, H);
+      }
+      return { t, y: ys, u: us };
+    }
+
+    function metrics(t, y) {
+      const N = y.length;
+      const tail = y.slice(Math.floor(N * 0.95));
+      const yf = tail.reduce((a, b) => a + b, 0) / tail.length;
+      const band = 0.02 * Math.abs(yf);
+      const settled = Math.abs(yf) > 1e-6 && Number.isFinite(yf) &&
+        y.slice(Math.floor(N * 0.9)).every(val => Math.abs(val - yf) <= band);
+      const out = {
+        yf,
+        settled,
+        essPct: Math.abs(1.0 - yf) * 100,
+        overshoot: null,
+        settle: null
+      };
+      if (!settled) return out;
+      out.overshoot = Math.max(0, 100 * (Math.max(...y) - yf) / Math.abs(yf));
+      let lastOut = -1;
+      for (let i = 0; i < N; i++) {
+        if (Math.abs(y[i] - yf) > band) lastOut = i;
+      }
+      out.settle = lastOut < 0 ? 0 : t[Math.min(lastOut + 1, N - 1)];
+      return out;
+    }
+
+    // ---------------- Random Plant Generator (reused from HW1 Module 4) ----------------
+    function generateChallenge() {
+      const isSecondOrder = Math.random() < 0.5;
+      if (!isSecondOrder) {
+        const K = Number(randomBetween(0.8, 2.5).toFixed(2));
+        const tau = Number(randomBetween(0.8, 3.0).toFixed(2));
+        hiddenPlant = {
+          order: 1,
+          K,
+          tau,
+          description: `First-order plant: G(s) = ${K} / (${tau}s + 1)`
+        };
+        const maxSettle = Math.max(2.0, Math.round((1.5 + 0.7 * tau) * 2) / 2);
+        const maxOvershoot = [8, 10, 12][Math.floor(Math.random() * 3)];
+        specs = { maxOvershoot, maxSettle, maxEssPct: 1.0 };
+      } else {
+        const zeta = Number(randomBetween(0.25, 0.65).toFixed(2));
+        const wn = Number(randomBetween(1.5, 4.0).toFixed(2));
+        hiddenPlant = {
+          order: 2,
+          K: 1,
+          zeta,
+          wn,
+          description: `Second-order plant: G(s) = ωn² / (s² + 2ζωns + ωn²) with K = 1, ζ = ${zeta}, ωn = ${wn} rad/s`
+        };
+        const maxSettle = Math.max(2.5, Math.round((5.0 / wn) * 2) / 2);
+        const maxOvershoot = [10, 12, 15][Math.floor(Math.random() * 3)];
+        specs = { maxOvershoot, maxSettle, maxEssPct: 1.0 };
+      }
+      get('revealBox').hidden = true;
+      get('plantRevealText').textContent = hiddenPlant.description;
+      update();
+    }
+
+    // ---------------- Charts & UI ----------------
+    function thin(t, y) {
+      const k = Math.max(1, Math.ceil(t.length / 1200)), pts = [];
+      for (let i = 0; i < t.length; i += k) pts.push({ x: t[i], y: y[i] });
+      return pts;
+    }
+    const line = (label, data, color, extra = {}) => ({
+      label, data, borderColor: color, backgroundColor: color,
+      borderWidth: 2, pointRadius: 0, tension: 0, ...extra
+    });
+    function chartOptions(yTitle) {
+      return {
+        responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+        interaction: { intersect: false, mode: 'nearest', axis: 'x' },
+        scales: {
+          x: { type: 'linear', min: 0, max: T_END,
+               title: { display: true, text: 'Time (s)', color: '#cbd5e1' },
+               ticks: { color: '#cbd5e1', maxTicksLimit: 8 }, grid: { color: '#334155' } },
+          y: { title: { display: true, text: yTitle, color: '#cbd5e1' },
+               ticks: { color: '#cbd5e1' }, grid: { color: '#334155' } }
+        },
+      plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#f8fafc', usePointStyle: true, pointStyle: 'line', boxWidth: 26 }
+          },
+          tooltip: { callbacks: {
+            title: it => 't = ' + it[0].parsed.x.toFixed(3) + ' s',
+            label: it => it.dataset.label + ': ' + it.parsed.y.toFixed(4)
+          } }
+        }
+      };
+    }
+
+    get('checkGuess').addEventListener('click', () => {
+      const val = get('guess').value;
+      get('feedback').textContent = !val
+        ? 'Choose an answer first.'
+        : (val === 'kd' ? 'Correct! ' : 'Not quite. ') +
+          'Kd acts like a brake when the output approaches the target fast, reducing overshoot while Ki keeps the steady-state error at 0%.';
+    });
+
+    if (typeof Chart === 'undefined') { get('loadError').hidden = false; return; }
+    const outChart = new Chart(get('outChart'), { type: 'line', data: { datasets: [] }, options: chartOptions('Output y') });
+    const uChart = new Chart(get('uChart'), { type: 'line', data: { datasets: [] }, options: chartOptions('Control u') });
+
+    function update() {
+      const c = { Kp: num('Kp'), Ki: num('Ki'), Kd: num('Kd') };
+      get('KpValue').textContent = c.Kp.toFixed(1);
+      get('KiValue').textContent = c.Ki.toFixed(1);
+      get('KdValue').textContent = c.Kd.toFixed(2);
+
+      const sim = simulate(hiddenPlant, c);
+      const m = metrics(sim.t, sim.y);
+
+      const passOs = m.settled && m.overshoot <= specs.maxOvershoot + 1e-6;
+      const passSettle = m.settled && m.settle <= specs.maxSettle + 1e-6;
+      const passEss = m.settled && m.essPct <= specs.maxEssPct + 1e-6;
+
+      const ptsOs = passOs ? 30 : 0;
+      const ptsSettle = passSettle ? 35 : 0;
+      const ptsEss = passEss ? 35 : 0;
+      const totalScore = ptsOs + ptsSettle + ptsEss;
+
+      const rows = [
+        {
+          name: 'Overshoot',
+          target: `≤ ${specs.maxOvershoot}%`,
+          actual: m.settled ? `${m.overshoot.toFixed(2)}%` : 'Unsettled',
+          pts: `${ptsOs} / 30`,
+          pass: passOs
+        },
+        {
+          name: 'Settling time (±2%)',
+          target: `≤ ${specs.maxSettle.toFixed(1)} s`,
+          actual: m.settled ? `${m.settle.toFixed(2)} s` : 'Unsettled',
+          pts: `${ptsSettle} / 35`,
+          pass: passSettle
+        },
+        {
+          name: 'Zero steady-state error',
+          target: `≤ ${specs.maxEssPct.toFixed(1)}% (≈ 0%)`,
+          actual: Number.isFinite(m.essPct) ? `${m.essPct.toFixed(2)}%` : '—',
+          pts: `${ptsEss} / 35`,
+          pass: passEss
+        }
+      ];
+
+      get('specRows').innerHTML = rows.map(r => `
+        <tr>
+          <td>${r.name}</td>
+          <td>${r.target}</td>
+          <td>${r.actual}</td>
+          <td>${r.pts}</td>
+          <td class="${r.pass ? 'pass' : 'fail'}">${r.pass ? 'PASS' : 'FAIL'}</td>
+        </tr>`).join('');
+
+      const banner = get('scoreBanner');
+      if (totalScore === 100) {
+        banner.innerHTML = `<span class="pass">Score: 100 / 100 — Challenge Solved!</span> Click "Reveal hidden plant" to inspect the system.`;
+      } else {
+        banner.innerHTML = `Score: ${totalScore} / 100 — Keep tuning the PID sliders to pass all 3 specs.`;
+      }
+
+      get('metricNote').textContent = m.settled ? '' :
+        'The output has not settled within 10 s (either gains are too low or the loop is oscillating).';
+
+      outChart.data.datasets = [
+        line('Output y', thin(sim.t, sim.y), '#38bdf8'),
+        line('Setpoint r = 1', [{ x: 0, y: 1 }, { x: T_END, y: 1 }], '#94a3b8', { borderDash: [6, 4] })
+      ];
+      outChart.update();
+
+      uChart.data.datasets = [
+        line('Control signal u', thin(sim.t, sim.u), '#fb923c'),
+        line('Limit (±20)', [{ x: 0, y: U_MAX }, { x: T_END, y: U_MAX }], '#fda4af', { borderDash: [6, 4] }),
+        line('Lower limit', [{ x: 0, y: -U_MAX }, { x: T_END, y: -U_MAX }], '#fda4af', { borderDash: [6, 4] })
+      ];
+      uChart.update();
+
+      const uPeak = Math.max(...sim.u.map(Math.abs));
+      get('uInfo').textContent = `Peak |u| = ${uPeak.toFixed(2)} (limit = ${U_MAX}).`;
+    }
+
+    ['Kp', 'Ki', 'Kd'].forEach(id => get(id).addEventListener('input', update));
+    get('newPlantBtn').addEventListener('click', generateChallenge);
+    get('revealBtn').addEventListener('click', () => { get('revealBox').hidden = false; });
+    get('resetBtn').addEventListener('click', () => {
+      get('Kp').value = 1; get('Ki').value = 0; get('Kd').value = 0;
+      update();
+    });
+
+    generateChallenge();
+  })();
+  </script>
+</body>
+</html>

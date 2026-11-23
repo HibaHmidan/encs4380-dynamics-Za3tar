@@ -106,7 +106,7 @@ P2:
 - Specifications: overshoot ≤ 10%, settling time (±2%) ≤ 2 s, steady-state error ≤ 1%, and |u| ≤ 20; reveals the hidden plant parameters once all specs pass.
 - Solved with RK4 integration, clamping anti-windup, and no derivative kick.
 
-# Screen Shots (P4)
+### Screen Shots (P4)
 ## P4:-
 <img width="1917" height="967" alt="Screenshot 2026-11-23 100535" src="https://github.com/user-attachments/assets/e3766717-91d9-48e7-ace2-20d0474e2611" />
 <img width="1917" height="902" alt="Screenshot 2026-11-23 100549" src="https://github.com/user-attachments/assets/0cf6751e-1287-4246-a4d2-167eaf9220f0" />

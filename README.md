@@ -1,5 +1,5 @@
 # encs4380-dynamics-Za3tar
-# ENCS4380 Homework 1: Dynamic Characteristics Interactive Toolkit
+# ENCS4380 Homework 1 and 2: Dynamic Characteristics and PID Interactive Toolkit
 
 Birzeit University, ENCS4380 Interfacing Techniques (Instructor: Dr. Wasel Ghanem)
 
@@ -98,6 +98,33 @@ P1:
 
 P2:
 <img width="398" height="461" alt="image" src="https://github.com/user-attachments/assets/5e7c77b0-aeff-471a-a6e9-573f9cdd8ee3" />
+
+## P3: Digital PID (`P3.html`)
+
+A digital PID controller does not act continuously. It reads the wheel speed every Tₛ seconds, computes a new command, and holds that command (zero-order hold) until the next sample. This page shows what that does to a Micromouse drive motor.
+
+**Controller:**
+u[k] = Kp·e[k] + Ki·Tₛ·Σe[j] + Kd·(e[k] − e[k−1])/Tₛ
+
+**Plant:** first-order motor G(s) = K/(τs + 1), with K and τ set by sliders so the team's own measured values can be entered.
+
+### What you can do
+- Change the sampling time Tₛ and the gains Kp, Ki and Kd.
+- Switch anti-windup on or off.
+- Use the presets: **Fast sampling** (Tₛ = 0.05 s), **Slow sampling** (Tₛ = 1.25 s) and **Windup demo**.
+- Switch the response plot between the full run and the first 3 s.
+- Answer the **"Predict, then check"** question before moving the sliders.
+
+### What the page shows
+- **Sampling instants:** a timing diagram of when the controller samples, with the equivalent clock rate.
+- **Wheel speed response:** the simulated speed against the setpoint, with the Tₛ = 0.05 s response drawn as a fast-sampling reference. Overshoot, settling time (±2%) and the error at the end are shown live.
+- **Stair-step motor command:** the held command u with its saturation limits.
+- **How performance falls as Tₛ grows:** a sweep where every point is a full simulation with the current gains, changing only Tₛ. It gives a chart and a table of overshoot, settling time, end error and a verdict. The dashed line marks the current Tₛ.
+- **Anti-windup:** when u saturates, integration is paused if the error would push it farther past the limit. The Windup demo preset shows the difference with it on and off.
+- **Arduino code:** C++ code generated for the current gains, Tₛ and target, with a **Copy code** button. It includes the anti-windup logic and avoids a derivative kick on the first sample. The `readNormalizedSpeed()` function is a stub to fill in with the encoder reading.
+
+### Lesson
+With the gains fixed, a small Tₛ behaves like a continuous controller. As Tₛ grows, overshoot grows and the loop eventually stops settling.
 
 
 ## P4: Tuning challenge (`P4.html`)

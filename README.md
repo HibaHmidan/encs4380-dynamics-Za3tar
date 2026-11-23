@@ -71,13 +71,13 @@ Nothing to install. Open the live link above, or open `index.html` in any browse
 
 # Homework 2: PID Control Toolkit
 
-| Module | Owner | Issue | Status |
+| Module | Owner | ID | Status |
 |--------|-------|-------|--------|
 | P1. PID playground (+ validation checks) | Hiba Hmidan | 1230454 | Done |
 | P2. A slow sensor in the loop | Hiba Hmidan | 1230454 | Done |
-| [P3. Digital PID](P3.html) | Hala Suboh | #7 | Published (reference model) |
-| P4. Tuning challenge | <owner> | #<n> | In progress |
-| [My System (Micromouse drive motor)](my-system.html) | Hala Suboh | — | Published – motor measurements pending |
+| [P3. Digital PID](P3.html) | Hala Suboh | 1230286 | Published (reference model) |
+| P4. Tuning challenge | Othman Katout | 1230746 | Done |
+| [My System (Micromouse drive motor)](my-system.html) | Hala Suboh | 1230286 | Published – motor measurements pending |
 
 **Simulation:** each page runs its own solver. Every 1 ms step, the PID computes u = Kp·e + Ki·∫e dt + Kd·de/dt, then the plant moves forward with RK4. All metrics are read off the simulated curve.
 
@@ -100,8 +100,17 @@ P2:
 <img width="398" height="461" alt="image" src="https://github.com/user-attachments/assets/5e7c77b0-aeff-471a-a6e9-573f9cdd8ee3" />
 
 
+## P4: Tuning challenge (`P4.html`)
+- Plant: hidden first-order K/(τs + 1) or second-order Kωn²/(s² + 2ζωns + ωn²) system with randomized parameters and a "New random plant" button; the user tunes Kp, Ki, and Kd.
+- Shows the output y against setpoint r = 1, control signal u with actuator limits (±20), and a live pass/fail specification table.
+- Specifications: overshoot ≤ 10%, settling time (±2%) ≤ 2 s, steady-state error ≤ 1%, and |u| ≤ 20; reveals the hidden plant parameters once all specs pass.
+- Solved with RK4 integration, clamping anti-windup, and no derivative kick.
 
-
+## Screenshots (Homework 2)
+## P4:-
+<img width="1917" height="967" alt="Screenshot 2026-11-23 100535" src="https://github.com/user-attachments/assets/e3766717-91d9-48e7-ace2-20d0474e2611" />
+<img width="1917" height="902" alt="Screenshot 2026-11-23 100549" src="https://github.com/user-attachments/assets/0cf6751e-1287-4246-a4d2-167eaf9220f0" />
+<img width="1917" height="912" alt="Screenshot 2026-11-23 100558" src="https://github.com/user-attachments/assets/94830e6d-b28a-4b53-a53f-033a8504cf7a" />
 
 
 ## Tools used
